@@ -1,8 +1,25 @@
+import { Hero } from "@/components/client/Hero";
+import { HowItWorks } from "@/components/client/HowItWorks";
+import { WhyHisabKitab } from "@/components/client/WhyHisabKitab";
+import { FounderNote } from "@/components/client/FounderNote";
+import { FinalCTA } from "@/components/client/FinalCTA";
+import { Footer } from "@/components/client/Footer";
+
 export default function HomePage() {
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
-      <h1 className="text-3xl font-bold text-text-primary">Hisab Kitab</h1>
-    </div>
+    <main>
+      <Hero />
+      <HowItWorks />
+      <WhyHisabKitab />
+      <FounderNote />
+      <FinalCTA />
+      <Footer />
+    </main>
   );
 }
+
+
+
+
+
 

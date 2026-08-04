@@ -18,6 +18,7 @@ if (!global.mongooseCache) {
 
 export async function connectToDatabase(): Promise<typeof mongoose> {
   const uri = process.env.MONGODB_URI;
+  console.log("uri", uri);
   if (!uri) {
     throw new Error(
       "Please define the MONGODB_URI environment variable inside .env.local"

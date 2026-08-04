@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/client/Providers";
+import { AuthModalProvider } from "@/components/client/AuthModalProvider";
+import { TransactionModalProvider } from "@/components/client/TransactionModalProvider";
+import { TransactionModal } from "@/components/client/TransactionModal";
 import { Navbar } from "@/components/client/Navbar";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -21,10 +24,17 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.className} bg-background text-text-primary min-h-screen antialiased flex flex-col`}>
         <Providers>
-          <Navbar />
-          <main className="flex-1">{children}</main>
+          <AuthModalProvider>
+            <TransactionModalProvider>
+              <Navbar />
+              <main className="flex-1">{children}</main>
+              <TransactionModal />
+            </TransactionModalProvider>
+          </AuthModalProvider>
         </Providers>
       </body>
     </html>
   );
 }
+
+
