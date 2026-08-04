@@ -54,7 +54,7 @@ export function Navbar() {
               </Link>
               <Link
                 href="/signup"
-                className="text-sm font-medium bg-accent hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors shadow-sm"
+                className="text-sm font-medium bg-accent hover:bg-emerald-700 text-white px-4 py-2 rounded-md transition-colors shadow-sm"
               >
                 Get Started
               </Link>
