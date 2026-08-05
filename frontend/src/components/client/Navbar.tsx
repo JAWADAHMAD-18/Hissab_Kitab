@@ -5,9 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/client/Button";
 import { useAuthModal } from "@/components/client/AuthModalProvider";
+import { NavLink } from "@/components/client/NavLink";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -65,16 +66,8 @@ export function Navbar() {
         <nav className="flex items-center gap-3 sm:gap-5">
           {isAuthenticated ? (
             <div className="relative flex items-center gap-4" ref={dropdownRef}>
-              <Link
-                href="/dashboard"
-                className={`text-base font-medium transition-colors ${
-                  pathname === "/dashboard"
-                    ? "text-accent font-semibold"
-                    : "text-text-muted hover:text-text-primary"
-                }`}
-              >
-                Dashboard
-              </Link>
+              <NavLink href="/dashboard">Dashboard</NavLink>
+              <NavLink href="/transactions">Transactions</NavLink>
 
               {/* Avatar Button */}
               <button
@@ -104,6 +97,15 @@ export function Navbar() {
                         {session?.user?.email}
                       </p>
                     </div>
+
+                    <Link
+                      href="/settings"
+                      onClick={() => setDropdownOpen(false)}
+                      className="w-full text-left px-3.5 py-2 text-xs font-medium text-text-primary hover:bg-background transition-colors flex items-center gap-2 cursor-pointer"
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                      Settings
+                    </Link>
 
                     <button
                       type="button"
