@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
-import { EXPENSE_CATEGORIES, PAYMENT_METHODS, ExpenseCategory, PaymentMethod } from "@/types";
+import {
+  EXPENSE_CATEGORIES,
+  PAYMENT_METHODS,
+  ExpenseCategory,
+  PaymentMethod,
+} from "@/types";
+import { TransactionData } from "@/components/client/TransactionModalProvider";
 
 interface ExpenseFormInputs {
   amount: number;
@@ -14,15 +20,27 @@ interface ExpenseFormInputs {
 }
 
 interface ExpenseFormProps {
+  defaultValues?: TransactionData | null;
   onSuccess: () => void;
 }
 
-export function ExpenseForm({ onSuccess }: ExpenseFormProps) {
+export function ExpenseForm({ defaultValues, onSuccess }: ExpenseFormProps) {
   const router = useRouter();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const docId = defaultValues?._id || defaultValues?.id;
+  const isEditing = Boolean(docId);
+
   const todayStr = new Date().toISOString().slice(0, 10);
+
+  const initialDateStr = defaultValues?.date
+    ? new Date(defaultValues.date).toISOString().slice(0, 10)
+    : todayStr;
+
+  const initialCategory = (defaultValues?.category || defaultValues?.label || "Food") as ExpenseCategory;
+
+  const initialPaymentMethod = (defaultValues?.paymentMethod as PaymentMethod) || "Bank";
 
   const {
     register,
@@ -30,9 +48,15 @@ export function ExpenseForm({ onSuccess }: ExpenseFormProps) {
     formState: { errors },
   } = useForm<ExpenseFormInputs>({
     defaultValues: {
-      date: todayStr,
-      category: "Food",
-      paymentMethod: "Bank",
+      amount: defaultValues?.amount || undefined,
+      category: EXPENSE_CATEGORIES.includes(initialCategory)
+        ? initialCategory
+        : "Food",
+      date: initialDateStr,
+      paymentMethod: PAYMENT_METHODS.includes(initialPaymentMethod)
+        ? initialPaymentMethod
+        : "Bank",
+      note: defaultValues?.note || "",
     },
   });
 
@@ -44,8 +68,11 @@ export function ExpenseForm({ onSuccess }: ExpenseFormProps) {
       const parsedAmount = Number(data.amount);
       const computedMonth = data.date.slice(0, 7);
 
-      const res = await fetch("/api/expenses", {
-        method: "POST",
+      const url = isEditing ? `/api/expenses/${docId}` : "/api/expenses";
+      const method = isEditing ? "PATCH" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount: parsedAmount,
@@ -54,14 +81,16 @@ export function ExpenseForm({ onSuccess }: ExpenseFormProps) {
           month: computedMonth,
           paymentMethod: data.paymentMethod || undefined,
           note: data.note || "",
-          source: "manual",
+          source: defaultValues?.source || "manual",
         }),
       });
 
       const resData = await res.json();
 
       if (!res.ok || !resData.success) {
-        setErrorMsg(resData.error || "Failed to add expense. Please try again.");
+        setErrorMsg(
+          resData.error || `Failed to ${isEditing ? "update" : "add"} expense. Please try again.`
+        );
         setLoading(false);
         return;
       }
@@ -181,7 +210,7 @@ export function ExpenseForm({ onSuccess }: ExpenseFormProps) {
         disabled={loading}
         className="w-full py-2.5 bg-accent hover:bg-emerald-700 text-white font-semibold text-sm rounded-md transition-colors disabled:opacity-50 cursor-pointer mt-2"
       >
-        {loading ? "Adding Expense..." : "Add Expense"}
+        {loading ? (isEditing ? "Updating..." : "Adding Expense...") : isEditing ? "Update" : "Add Expense"}
       </button>
     </form>
   );

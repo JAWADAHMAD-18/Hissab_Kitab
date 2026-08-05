@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { INCOME_SOURCES, IncomeSource } from "@/types";
+import { TransactionData } from "@/components/client/TransactionModalProvider";
 
 interface IncomeFormInputs {
   amount: number;
@@ -14,15 +15,25 @@ interface IncomeFormInputs {
 }
 
 interface IncomeFormProps {
+  defaultValues?: TransactionData | null;
   onSuccess: () => void;
 }
 
-export function IncomeForm({ onSuccess }: IncomeFormProps) {
+export function IncomeForm({ defaultValues, onSuccess }: IncomeFormProps) {
   const router = useRouter();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const docId = defaultValues?._id || defaultValues?.id;
+  const isEditing = Boolean(docId);
+
   const todayStr = new Date().toISOString().slice(0, 10);
+
+  const initialDateStr = defaultValues?.date
+    ? new Date(defaultValues.date).toISOString().slice(0, 10)
+    : todayStr;
+
+  const initialSource = (defaultValues?.source || defaultValues?.label || "Salary") as IncomeSource;
 
   const {
     register,
@@ -30,9 +41,11 @@ export function IncomeForm({ onSuccess }: IncomeFormProps) {
     formState: { errors },
   } = useForm<IncomeFormInputs>({
     defaultValues: {
-      date: todayStr,
-      source: "Salary",
-      recurring: false,
+      amount: defaultValues?.amount || undefined,
+      source: INCOME_SOURCES.includes(initialSource) ? initialSource : "Salary",
+      date: initialDateStr,
+      recurring: Boolean(defaultValues?.recurring),
+      note: defaultValues?.note || "",
     },
   });
 
@@ -44,8 +57,11 @@ export function IncomeForm({ onSuccess }: IncomeFormProps) {
       const parsedAmount = Number(data.amount);
       const computedMonth = data.date.slice(0, 7);
 
-      const res = await fetch("/api/income", {
-        method: "POST",
+      const url = isEditing ? `/api/income/${docId}` : "/api/income";
+      const method = isEditing ? "PATCH" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount: parsedAmount,
@@ -60,7 +76,7 @@ export function IncomeForm({ onSuccess }: IncomeFormProps) {
       const resData = await res.json();
 
       if (!res.ok || !resData.success) {
-        setErrorMsg(resData.error || "Failed to add income. Please try again.");
+        setErrorMsg(resData.error || `Failed to ${isEditing ? "update" : "add"} income. Please try again.`);
         setLoading(false);
         return;
       }
@@ -176,7 +192,7 @@ export function IncomeForm({ onSuccess }: IncomeFormProps) {
         disabled={loading}
         className="w-full py-2.5 bg-accent hover:bg-emerald-700 text-white font-semibold text-sm rounded-md transition-colors disabled:opacity-50 cursor-pointer mt-2"
       >
-        {loading ? "Adding Income..." : "Add Income"}
+        {loading ? (isEditing ? "Updating..." : "Adding Income...") : isEditing ? "Update" : "Add Income"}
       </button>
     </form>
   );

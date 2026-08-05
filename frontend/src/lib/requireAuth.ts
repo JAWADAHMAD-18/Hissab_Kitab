@@ -17,8 +17,15 @@ export class AuthError extends AppError {
  * Supports both web sessions (via getServerSession) and mobile Bearer tokens (via getToken).
  */
 export async function requireAuth(req?: Request | NextRequest): Promise<string> {
-  // 1. Try NextAuth web session
-  const session = await getServerSession(authOptions);
+  console.log('[DEBUG requireAuth] NEXTAUTH_SECRET set:', !!process.env.NEXTAUTH_SECRET, 'length:', process.env.NEXTAUTH_SECRET?.length);
+
+  let session = null;
+  try {
+    session = await getServerSession(authOptions);
+    console.log('[DEBUG requireAuth] session result:', session ? 'session found, user id: ' + session.user?.id : 'session is null/undefined');
+  } catch (error) {
+    console.log('[DEBUG requireAuth] error caught:', error);
+  }
 
   if (session?.user?.id) {
     return session.user.id;

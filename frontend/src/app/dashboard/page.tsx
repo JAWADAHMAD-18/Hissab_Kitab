@@ -84,19 +84,25 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   // 4. Combined last ~8 transactions for selected month
   const mappedIncomes: TransactionItem[] = monthIncomes.map((inc) => ({
     id: String(inc._id),
+    _id: String(inc._id),
     type: "income",
     label: inc.source,
+    source: inc.source,
     amount: inc.amount,
     date: new Date(inc.date).toISOString(),
+    recurring: inc.recurring,
     note: inc.note || undefined,
   }));
 
   const mappedExpenses: TransactionItem[] = monthExpenses.map((exp) => ({
     id: String(exp._id),
+    _id: String(exp._id),
     type: "expense",
     label: exp.category,
+    category: exp.category,
     amount: exp.amount,
     date: new Date(exp.date).toISOString(),
+    paymentMethod: exp.paymentMethod,
     note: exp.note || undefined,
   }));
 

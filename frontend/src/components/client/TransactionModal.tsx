@@ -8,7 +8,7 @@ import { IncomeForm } from "@/components/client/IncomeForm";
 import { ExpenseForm } from "@/components/client/ExpenseForm";
 
 export function TransactionModal() {
-  const { isOpen, type, closeModal } = useTransactionModal();
+  const { isOpen, type, mode, transaction, closeModal } = useTransactionModal();
   const cardRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
 
@@ -44,6 +44,24 @@ export function TransactionModal() {
       };
     }
   }, [isOpen, closeModal]);
+
+  const getTitle = () => {
+    if (type === "income") {
+      return mode === "edit" ? "Edit Income" : "Add Income";
+    }
+    return mode === "edit" ? "Edit Expense" : "Add Expense";
+  };
+
+  const getSubtitle = () => {
+    if (type === "income") {
+      return mode === "edit"
+        ? "Update income entry details"
+        : "Record a salary, allowance, or freelance payout";
+    }
+    return mode === "edit"
+      ? "Update expense entry details"
+      : "Record a daily expense item";
+  };
 
   return (
     <AnimatePresence>
@@ -88,20 +106,22 @@ export function TransactionModal() {
                 id="transaction-modal-title"
                 className="text-2xl font-bold text-text-primary tracking-tight"
               >
-                {type === "income" ? "Add Income" : "Add Expense"}
+                {getTitle()}
               </h2>
-              <p className="text-sm text-text-muted mt-1">
-                {type === "income"
-                  ? "Record a salary, allowance, or freelance payout"
-                  : "Record a daily expense item"}
-              </p>
+              <p className="text-sm text-text-muted mt-1">{getSubtitle()}</p>
             </div>
 
             {/* Form Component */}
             {type === "income" ? (
-              <IncomeForm onSuccess={closeModal} />
+              <IncomeForm
+                defaultValues={transaction}
+                onSuccess={closeModal}
+              />
             ) : (
-              <ExpenseForm onSuccess={closeModal} />
+              <ExpenseForm
+                defaultValues={transaction}
+                onSuccess={closeModal}
+              />
             )}
           </motion.div>
         </div>
