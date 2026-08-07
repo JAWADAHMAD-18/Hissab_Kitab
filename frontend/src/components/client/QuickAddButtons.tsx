@@ -2,12 +2,13 @@
 
 import { useTransactionModal } from "@/components/client/TransactionModalProvider";
 import { Button } from "@/components/client/Button";
+import { VoiceLogButton } from "@/components/client/VoiceLogButton";
 
 export function QuickAddButtons() {
   const { openModal } = useTransactionModal();
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <Button
         variant="secondary"
         onClick={() => openModal("income")}
@@ -23,6 +24,8 @@ export function QuickAddButtons() {
       >
         + Add Expense
       </Button>
+
+      <VoiceLogButton />
     </div>
   );
 }

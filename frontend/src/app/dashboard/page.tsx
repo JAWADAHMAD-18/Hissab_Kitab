@@ -10,6 +10,7 @@ import { DashboardStats } from "@/components/server/DashboardStats";
 import { MonthRunway } from "@/components/server/MonthRunway";
 import { CategoryBreakdown } from "@/components/server/CategoryBreakdown";
 import { RecentActivity, TransactionItem } from "@/components/server/RecentActivity";
+import { DownloadStatementButton } from "@/components/client/DownloadStatementButton";
 
 interface PageProps {
   searchParams: Promise<{ month?: string }>;
@@ -106,18 +107,30 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     note: exp.note || undefined,
   }));
 
-  const transactions: TransactionItem[] = [...mappedIncomes, ...mappedExpenses]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 8);
+  // All transactions sorted by date desc — used for RecentActivity (sliced) and statement (full)
+  const allSortedTransactions: TransactionItem[] = [...mappedIncomes, ...mappedExpenses]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const transactions = allSortedTransactions.slice(0, 8);
 
   return (
     <div className="max-w-7xl mx-auto px-6 lg:px-12 py-8 lg:py-12 flex flex-col gap-8">
-      {/* Top Row: Switcher & Quick Add Buttons */}
+      {/* Top Row: Switcher, Statement Download & Quick Add Buttons */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <MonthSwitcher
-          selectedMonth={selectedMonth}
-          currentMonth={currentMonthStr}
-        />
+        <div className="flex items-center gap-3">
+          <MonthSwitcher
+            selectedMonth={selectedMonth}
+            currentMonth={currentMonthStr}
+          />
+          <DownloadStatementButton
+            monthLabel={new Date(selectedMonth + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+            selectedMonth={selectedMonth}
+            transactions={allSortedTransactions}
+            totalIncome={incomeThisMonth}
+            totalExpense={spentThisMonth}
+            balance={incomeThisMonth - spentThisMonth}
+          />
+        </div>
         <QuickAddButtons />
       </div>
 

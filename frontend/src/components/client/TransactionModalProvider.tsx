@@ -9,7 +9,7 @@ export interface TransactionData {
   id?: string;
   _id?: string;
   type?: TransactionType;
-  amount: number;
+  amount?: number;
   source?: string;
   category?: string;
   date: string | Date;
@@ -45,7 +45,8 @@ export function TransactionModalProvider({
   const openModal = useCallback((newType: TransactionType, newTransaction?: TransactionData | null) => {
     setType(newType);
     if (newTransaction) {
-      setMode("edit");
+      const docId = newTransaction._id || newTransaction.id;
+      setMode(docId ? "edit" : "add");
       setTransaction(newTransaction);
     } else {
       setMode("add");
