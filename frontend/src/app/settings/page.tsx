@@ -53,6 +53,7 @@ export default async function SettingsPage() {
       <WhatsAppConnectSection
         whatsappNumber={user.whatsappNumber || null}
         whatsappVerified={user.whatsappVerified === true}
+        whatsappDisplayNumber={process.env.WHATSAPP_DISPLAY_NUMBER || ""}
       />
 
       {/* Data & Privacy */}

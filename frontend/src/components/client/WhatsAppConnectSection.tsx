@@ -1,98 +1,76 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MessageCircle } from "lucide-react";
 
 interface WhatsAppConnectSectionProps {
   whatsappNumber: string | null;
   whatsappVerified: boolean;
+  whatsappDisplayNumber: string;
 }
+
+const LINK_CODE_TTL_MS = 10 * 60 * 1000;
+const POLL_INTERVAL_MS = 3000;
 
 export function WhatsAppConnectSection({
   whatsappNumber: initialNumber,
   whatsappVerified: initialVerified,
+  whatsappDisplayNumber,
 }: WhatsAppConnectSectionProps) {
   const router = useRouter();
   const [connected, setConnected] = useState(initialVerified && Boolean(initialNumber));
   const [connectedNumber, setConnectedNumber] = useState(initialNumber || "");
-  const [phoneNumber, setPhoneNumber] = useState(initialNumber || "");
-  const [codeSent, setCodeSent] = useState(false);
-  const [verificationCode, setVerificationCode] = useState("");
-  const [sendingCode, setSendingCode] = useState(false);
-  const [verifying, setVerifying] = useState(false);
+  const [linkCode, setLinkCode] = useState<string | null>(null);
+  const [waitingForLink, setWaitingForLink] = useState(false);
+  const [startingLink, setStartingLink] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const handleSendCode = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const linkStartedAtRef = useRef<number | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const expiryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    if (expiryTimeoutRef.current) {
+      clearTimeout(expiryTimeoutRef.current);
+      expiryTimeoutRef.current = null;
+    }
+  }, []);
+
+  const resetLinkFlow = useCallback(() => {
+    clearPolling();
+    setWaitingForLink(false);
+    setLinkCode(null);
+    linkStartedAtRef.current = null;
+  }, [clearPolling]);
+
+  const handleStartLink = async () => {
     setError(null);
     setSuccessMsg(null);
+    setStartingLink(true);
 
-    const trimmed = phoneNumber.trim();
-    if (!trimmed) {
-      setError("Please enter your WhatsApp number.");
-      return;
-    }
-
-    setSendingCode(true);
     try {
-      const res = await fetch("/api/user/whatsapp/send-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: trimmed }),
-      });
+      const res = await fetch("/api/user/whatsapp/start-link", { method: "POST" });
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setError(data.error || "Failed to send verification code.");
+        setError(data.error || "Failed to start WhatsApp linking.");
         return;
       }
 
-      setCodeSent(true);
-      setSuccessMsg("Code sent! Check your WhatsApp.");
+      setLinkCode(data.data.code);
+      setWaitingForLink(true);
+      linkStartedAtRef.current = Date.now();
     } catch {
       setError("An unexpected error occurred.");
     } finally {
-      setSendingCode(false);
-    }
-  };
-
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
-
-    if (!/^\d{6}$/.test(verificationCode.trim())) {
-      setError("Please enter the 6-digit code.");
-      return;
-    }
-
-    setVerifying(true);
-    try {
-      const res = await fetch("/api/user/whatsapp/verify-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: verificationCode.trim() }),
-      });
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        setError(data.error || "Verification failed.");
-        return;
-      }
-
-      setConnected(true);
-      setConnectedNumber(data.data.whatsappNumber);
-      setCodeSent(false);
-      setVerificationCode("");
-      setSuccessMsg("WhatsApp connected successfully.");
-      router.refresh();
-    } catch {
-      setError("An unexpected error occurred.");
-    } finally {
-      setVerifying(false);
+      setStartingLink(false);
     }
   };
 
@@ -102,9 +80,7 @@ export function WhatsAppConnectSection({
     setDisconnecting(true);
 
     try {
-      const res = await fetch("/api/user/whatsapp/disconnect", {
-        method: "POST",
-      });
+      const res = await fetch("/api/user/whatsapp/disconnect", { method: "POST" });
       const data = await res.json();
 
       if (!res.ok || !data.success) {
@@ -112,11 +88,9 @@ export function WhatsAppConnectSection({
         return;
       }
 
+      resetLinkFlow();
       setConnected(false);
       setConnectedNumber("");
-      setPhoneNumber("");
-      setCodeSent(false);
-      setVerificationCode("");
       setSuccessMsg("WhatsApp disconnected.");
       router.refresh();
     } catch {
@@ -125,6 +99,47 @@ export function WhatsAppConnectSection({
       setDisconnecting(false);
     }
   };
+
+  useEffect(() => {
+    if (!waitingForLink) return;
+
+    const pollStatus = async () => {
+      try {
+        const res = await fetch("/api/user/whatsapp/link-status");
+        const data = await res.json();
+
+        if (res.ok && data.success && data.data.whatsappVerified) {
+          clearPolling();
+          setWaitingForLink(false);
+          setLinkCode(null);
+          setConnected(true);
+          setConnectedNumber(data.data.whatsappNumber || "");
+          setSuccessMsg("WhatsApp connected successfully.");
+          router.refresh();
+        }
+      } catch {
+        // Keep polling — transient network errors shouldn't abort the flow
+      }
+    };
+
+    pollStatus();
+    pollIntervalRef.current = setInterval(pollStatus, POLL_INTERVAL_MS);
+
+    const startedAt = linkStartedAtRef.current ?? Date.now();
+    const remainingMs = Math.max(0, LINK_CODE_TTL_MS - (Date.now() - startedAt));
+
+    expiryTimeoutRef.current = setTimeout(() => {
+      resetLinkFlow();
+      setError("Code expired, try again");
+    }, remainingMs);
+
+    return () => {
+      clearPolling();
+    };
+  }, [waitingForLink, clearPolling, resetLinkFlow, router]);
+
+  const displayNumber =
+    whatsappDisplayNumber || "our WhatsApp number";
 
   return (
     <div className="bg-surface border border-border rounded-2xl p-6 shadow-xs flex flex-col gap-4">
@@ -158,78 +173,29 @@ export function WhatsAppConnectSection({
             {disconnecting ? "Disconnecting..." : "Disconnect"}
           </button>
         </div>
+      ) : waitingForLink && linkCode ? (
+        <div className="flex flex-col gap-4 pl-[52px] max-w-sm">
+          <p className="text-4xl font-mono font-bold tracking-[0.2em] text-text-primary">
+            {linkCode}
+          </p>
+          <p className="text-sm text-text-muted leading-relaxed">
+            Send this code as a WhatsApp message to{" "}
+            <span className="font-semibold text-text-primary">{displayNumber}</span>
+          </p>
+          <p className="text-xs text-text-muted">
+            Waiting for confirmation… (expires in 10 minutes)
+          </p>
+        </div>
       ) : (
-        <div className="flex flex-col gap-4 pl-[52px]">
-          <form onSubmit={handleSendCode} className="flex flex-col gap-3 max-w-sm">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-text-muted">
-                WhatsApp Number
-              </label>
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="+923001234567"
-                disabled={codeSent && sendingCode}
-                className="w-full px-3 py-2 bg-background border border-border rounded-md text-text-primary text-sm focus:outline-none focus:border-accent disabled:opacity-60"
-              />
-              <p className="text-xs text-text-muted">
-                Include country code, e.g. +92XXXXXXXXXX
-              </p>
-            </div>
-
-            {!codeSent && (
-              <button
-                type="submit"
-                disabled={sendingCode}
-                className="w-fit px-5 py-2.5 bg-accent hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                {sendingCode ? "Sending..." : "Send Code"}
-              </button>
-            )}
-          </form>
-
-          {codeSent && (
-            <form onSubmit={handleVerify} className="flex flex-col gap-3 max-w-sm">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-text-muted">
-                  Verification Code
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={verificationCode}
-                  onChange={(e) =>
-                    setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))
-                  }
-                  placeholder="123456"
-                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-text-primary text-sm tracking-widest focus:outline-none focus:border-accent"
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  type="submit"
-                  disabled={verifying}
-                  className="px-5 py-2.5 bg-accent hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  {verifying ? "Verifying..." : "Verify"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCodeSent(false);
-                    setVerificationCode("");
-                    setError(null);
-                    setSuccessMsg(null);
-                  }}
-                  className="text-sm text-text-muted hover:text-text-primary cursor-pointer"
-                >
-                  Change number
-                </button>
-              </div>
-            </form>
-          )}
+        <div className="pl-[52px]">
+          <button
+            type="button"
+            onClick={handleStartLink}
+            disabled={startingLink}
+            className="px-5 py-2.5 bg-accent hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            {startingLink ? "Generating code..." : "Connect WhatsApp"}
+          </button>
         </div>
       )}
 

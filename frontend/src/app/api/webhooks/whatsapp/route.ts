@@ -61,6 +61,30 @@ async function safeReply(to: string, body: string): Promise<void> {
   }
 }
 
+async function tryLinkUserByCode(from: string, code: string): Promise<boolean> {
+  const user = await User.findOne({
+    whatsappVerificationCode: code,
+    whatsappVerificationExpiry: { $gt: new Date() },
+  }).select("+whatsappVerificationCode +whatsappVerificationExpiry");
+
+  if (!user) {
+    return false;
+  }
+
+  user.whatsappNumber = `+${from}`;
+  user.whatsappVerified = true;
+  user.whatsappVerificationCode = undefined;
+  user.whatsappVerificationExpiry = undefined;
+  await user.save();
+
+  await safeReply(
+    from,
+    "✅ Linked to Hisab Kitab! Send a voice note anytime to log an expense."
+  );
+
+  return true;
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const mode = searchParams.get("hub.mode");
@@ -98,6 +122,7 @@ export async function POST(req: NextRequest) {
             messages?: Array<{
               from: string;
               type: string;
+              text?: { body: string };
               audio?: { id: string; mime_type?: string };
             }>;
             statuses?: unknown[];
@@ -116,6 +141,16 @@ export async function POST(req: NextRequest) {
     const type = message.type;
 
     await connectToDatabase();
+
+    if (type === "text") {
+      const bodyText = message.text?.body?.trim() ?? "";
+      if (/^\d{6}$/.test(bodyText)) {
+        const linked = await tryLinkUserByCode(from, bodyText);
+        if (linked) {
+          return new NextResponse("OK", { status: 200 });
+        }
+      }
+    }
 
     const user = await findVerifiedUserByPhone(from);
     if (!user) {
