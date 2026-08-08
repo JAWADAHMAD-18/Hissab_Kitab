@@ -23,6 +23,25 @@ const UserSchema = new Schema<IUser>(
       type: String,
       required: false,
     },
+    whatsappNumber: {
+      type: String,
+      required: false,
+      trim: true,
+    },
+    whatsappVerified: {
+      type: Boolean,
+      default: false,
+    },
+    whatsappVerificationCode: {
+      type: String,
+      required: false,
+      select: false,
+    },
+    whatsappVerificationExpiry: {
+      type: Date,
+      required: false,
+      select: false,
+    },
   },
   {
     timestamps: true,

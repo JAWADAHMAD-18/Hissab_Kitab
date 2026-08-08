@@ -6,6 +6,7 @@ import User from "@/models/User";
 import { ProfileSection } from "@/components/client/ProfileSection";
 import { ChangePasswordSection } from "@/components/client/ChangePasswordSection";
 import { ExportDataButton } from "@/components/client/ExportDataButton";
+import { WhatsAppConnectSection } from "@/components/client/WhatsAppConnectSection";
 import { DeleteAccountSection } from "@/components/client/DeleteAccountSection";
 
 export default async function SettingsPage() {
@@ -47,6 +48,12 @@ export default async function SettingsPage() {
 
       {/* Password — only for credential accounts */}
       {hasPassword && <ChangePasswordSection />}
+
+      {/* WhatsApp linking */}
+      <WhatsAppConnectSection
+        whatsappNumber={user.whatsappNumber || null}
+        whatsappVerified={user.whatsappVerified === true}
+      />
 
       {/* Data & Privacy */}
       <div className="bg-surface border border-border rounded-2xl p-6 shadow-xs flex flex-col gap-4">

@@ -30,6 +30,10 @@ export interface IUser {
   email: string;
   password?: string;
   image?: string;
+  whatsappNumber?: string;
+  whatsappVerified?: boolean;
+  whatsappVerificationCode?: string;
+  whatsappVerificationExpiry?: Date;
   createdAt?: Date;
   updatedAt?: Date;
 }
