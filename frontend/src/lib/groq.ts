@@ -1,5 +1,10 @@
 import Groq, { toFile } from "groq-sdk";
-import { EXPENSE_CATEGORIES, ExpenseCategory } from "@/types";
+import {
+  EXPENSE_CATEGORIES,
+  INCOME_SOURCES,
+  ExpenseCategory,
+  IncomeSource,
+} from "@/types";
 
 // Verified active via GET https://api.groq.com/openai/v1/models (Aug 2026).
 const GROQ_CHAT_MODEL = "llama-3.3-70b-versatile";
@@ -24,9 +29,10 @@ function stripJsonFences(raw: string): string {
     .trim();
 }
 
-export interface VoiceExpenseExtracted {
+export interface VoiceTransactionExtracted {
+  type: "income" | "expense";
   amount: number | null;
-  category: ExpenseCategory;
+  category: string;
   note: string;
 }
 
@@ -51,32 +57,39 @@ export async function transcribeAudio(audioBlob: Blob): Promise<string | null> {
   return text;
 }
 
-const VOICE_EXPENSE_SYSTEM_PROMPT = [
-  "You extract expense details from spoken voice notes for Hisab Kitab, a personal finance app for Pakistani users.",
+const VOICE_TRANSACTION_SYSTEM_PROMPT = [
+  "You extract transaction details from spoken voice notes for Hisab Kitab, a personal finance app for Pakistani users.",
   "The user may speak in Urdu, Roman Urdu (Urdu written in English letters), English, or a mix of all three — this is normal for Pakistani users.",
-  "Understand common local expense vocabulary regardless of script or language, for example:",
-  "roti/khana/lunch/dinner/nashta → Food;",
-  "petrol/diesel/kiraya/rickshaw/bus/uber → Transport;",
-  "bijli ka bill/gas bill/pani ka bill → Utilities;",
-  "dawa/hospital/doctor/clinic → Health;",
-  "ghar ka kiraya → Rent.",
-  "Extract the amount regardless of whether it is spoken as digits or words, in Urdu or English (e.g. 'ek hazar' = 1000, 'sau' = 100, 'dhai sou' = 250, 'char sau pachaas' = 450).",
+  "FIRST determine direction — is this money coming IN (income) or going OUT (expense)?",
+  "Income signals (money RECEIVED): mila, aya, salary, tankhwah, kamaya, payment mila, income, freelance se mila, or any phrasing where the speaker received money.",
+  "Expense signals (money SPENT): kharch, diya, kharcha kiya, dalwaya, khaya/khareeda, or any phrasing where the speaker spent money.",
+  "If genuinely ambiguous, default type to expense (far more common in daily logging).",
+  "Understand common local vocabulary regardless of script or language, for example:",
+  "roti/khana/lunch/dinner/nashta → Food (expense);",
+  "petrol/diesel/kiraya/rickshaw/bus/uber → Transport (expense);",
+  "bijli ka bill/gas bill/pani ka bill → Utilities (expense);",
+  "dawa/hospital/doctor/clinic → Health (expense);",
+  "ghar ka kiraya → Rent (expense);",
+  "salary/tankhwah → Salary (income); freelance se mila → Freelance (income).",
+  "Extract the amount regardless of whether it is spoken as digits or words, in Urdu or English (e.g. 'ek hazar' = 1000, 'sau' = 100, 'dhai sou' = 250).",
   "Respond with ONLY valid JSON — no markdown fences, no preamble, no trailing text.",
-  'Shape: { "amount": number | null, "category": "...", "note": "..." }',
-  `category MUST be exactly one of: ${EXPENSE_CATEGORIES.join(", ")}. Default to "Other" if genuinely unclear — never invent a new category.`,
+  'Shape: { "type": "income" | "expense", "amount": number | null, "category": "...", "note": "..." }',
+  `If type is "income", category MUST be exactly one of: ${INCOME_SOURCES.join(", ")}.`,
+  `If type is "expense", category MUST be exactly one of: ${EXPENSE_CATEGORIES.join(", ")}.`,
+  "Default category to Other if genuinely unclear — never invent a new category.",
   "amount: the rupee amount as a number only. Return null if no clear number is mentioned — do not guess.",
-  "note: a short note for the user's own reference — may stay in whatever language or script they spoke (Urdu script, Roman Urdu, or English).",
+  "note: a short note for the user's own reference — may stay in whatever language or script they spoke.",
 ].join(" ");
 
-export async function extractExpenseFromVoice(
+export async function extractTransactionFromVoice(
   transcript: string
-): Promise<VoiceExpenseExtracted | null> {
+): Promise<VoiceTransactionExtracted | null> {
   const completion = await getGroqClient().chat.completions.create({
     model: GROQ_CHAT_MODEL,
     messages: [
       {
         role: "system",
-        content: VOICE_EXPENSE_SYSTEM_PROMPT,
+        content: VOICE_TRANSACTION_SYSTEM_PROMPT,
       },
       {
         role: "user",
@@ -84,24 +97,33 @@ export async function extractExpenseFromVoice(
       },
     ],
     temperature: 0.2,
-    max_tokens: 150,
+    max_tokens: 180,
   });
 
   const raw = completion.choices[0]?.message?.content?.trim() ?? "";
 
   try {
     const parsed = JSON.parse(stripJsonFences(raw)) as {
+      type?: unknown;
       amount?: unknown;
       category?: unknown;
       note?: unknown;
     };
+
+    const type: "income" | "expense" =
+      parsed.type === "income" ? "income" : "expense";
 
     const amount =
       typeof parsed.amount === "number" && parsed.amount > 0 ? parsed.amount : null;
 
     let category =
       typeof parsed.category === "string" ? parsed.category.trim() : "Other";
-    if (!EXPENSE_CATEGORIES.includes(category as ExpenseCategory)) {
+
+    if (type === "income") {
+      if (!INCOME_SOURCES.includes(category as IncomeSource)) {
+        category = "Other";
+      }
+    } else if (!EXPENSE_CATEGORIES.includes(category as ExpenseCategory)) {
       category = "Other";
     }
 
@@ -111,8 +133,9 @@ export async function extractExpenseFromVoice(
         : transcript;
 
     return {
+      type,
       amount,
-      category: category as ExpenseCategory,
+      category,
       note,
     };
   } catch {

@@ -5,21 +5,21 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Loader2, Mic } from "lucide-react";
 import { useTransactionModal } from "@/components/client/TransactionModalProvider";
-import { ExpenseCategory } from "@/types";
 
 type VoiceState = "idle" | "recording" | "processing";
 
-interface SavedExpenseToast {
-  category: string;
+interface SavedTransactionToast {
+  type: "income" | "expense";
+  label: string;
   amount: number;
-  expense: {
+  transaction: {
     _id: string;
     amount: number;
-    category: string;
     date: string;
     note?: string;
-    paymentMethod?: string;
+    category?: string;
     source?: string;
+    paymentMethod?: string;
   };
 }
 
@@ -42,7 +42,7 @@ export function VoiceLogButton() {
   const [state, setState] = useState<VoiceState>("idle");
   const [elapsed, setElapsed] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
-  const [successToast, setSuccessToast] = useState<SavedExpenseToast | null>(null);
+  const [successToast, setSuccessToast] = useState<SavedTransactionToast | null>(null);
   const [errorToast, setErrorToast] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -66,7 +66,7 @@ export function VoiceLogButton() {
   }, [clearToastTimer]);
 
   const showSuccessToast = useCallback(
-    (toast: SavedExpenseToast) => {
+    (toast: SavedTransactionToast) => {
       clearToastTimer();
       setErrorToast(null);
       setSuccessToast(toast);
@@ -113,21 +113,33 @@ export function VoiceLogButton() {
     messageTimerRef.current = setTimeout(() => setMessage(null), ms);
   }, []);
 
-  const handleEditSavedExpense = useCallback(() => {
+  const handleEditSavedTransaction = useCallback(() => {
     if (!successToast) return;
 
-    const { expense } = successToast;
+    const { transaction, type } = successToast;
     dismissSuccessToast();
-    openModal("expense", {
-      _id: expense._id,
-      type: "expense",
-      amount: expense.amount,
-      category: expense.category,
-      date: expense.date,
-      note: expense.note,
-      paymentMethod: expense.paymentMethod,
-      source: expense.source,
-    });
+
+    if (type === "income") {
+      openModal("income", {
+        _id: transaction._id,
+        type: "income",
+        amount: transaction.amount,
+        source: transaction.source,
+        date: transaction.date,
+        note: transaction.note,
+      });
+    } else {
+      openModal("expense", {
+        _id: transaction._id,
+        type: "expense",
+        amount: transaction.amount,
+        category: transaction.category,
+        date: transaction.date,
+        note: transaction.note,
+        paymentMethod: transaction.paymentMethod,
+        source: transaction.source,
+      });
+    }
   }, [dismissSuccessToast, openModal, successToast]);
 
   const processRecording = useCallback(
@@ -154,8 +166,9 @@ export function VoiceLogButton() {
         const { transcript, extracted } = data.data as {
           transcript: string | null;
           extracted: {
+            type: "income" | "expense";
             amount: number | null;
-            category: ExpenseCategory;
+            category: string;
             note: string;
           } | null;
         };
@@ -169,16 +182,27 @@ export function VoiceLogButton() {
         const today = new Date().toISOString().slice(0, 10);
 
         if (extracted?.amount != null) {
-          const saveRes = await fetch("/api/expenses", {
+          const isIncome = extracted.type === "income";
+          const saveUrl = isIncome ? "/api/income" : "/api/expenses";
+          const saveBody = isIncome
+            ? {
+                amount: extracted.amount,
+                source: extracted.category,
+                note: extracted.note || transcript,
+                date: today,
+              }
+            : {
+                amount: extracted.amount,
+                category: extracted.category,
+                note: extracted.note || transcript,
+                date: today,
+                source: "voice",
+              };
+
+          const saveRes = await fetch(saveUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              amount: extracted.amount,
-              category: extracted.category,
-              note: extracted.note || transcript,
-              date: today,
-              source: "voice",
-            }),
+            body: JSON.stringify(saveBody),
           });
 
           const saveData = await saveRes.json();
@@ -189,19 +213,20 @@ export function VoiceLogButton() {
             return;
           }
 
-          const expense = saveData.data;
+          const saved = saveData.data;
           router.refresh();
           showSuccessToast({
-            category: extracted.category,
+            type: extracted.type,
+            label: extracted.category,
             amount: extracted.amount,
-            expense: {
-              _id: String(expense._id),
-              amount: expense.amount,
-              category: expense.category,
-              date: expense.date,
-              note: expense.note || undefined,
-              paymentMethod: expense.paymentMethod || undefined,
-              source: expense.source || "voice",
+            transaction: {
+              _id: String(saved._id),
+              amount: saved.amount,
+              date: saved.date,
+              note: saved.note || undefined,
+              category: isIncome ? undefined : saved.category,
+              source: isIncome ? saved.source : saved.source || "voice",
+              paymentMethod: saved.paymentMethod || undefined,
             },
           });
           setState("idle");
@@ -209,12 +234,21 @@ export function VoiceLogButton() {
         }
 
         if (extracted) {
-          openModal("expense", {
-            category: extracted.category,
-            note: extracted.note || transcript,
-            date: today,
-            source: "voice",
-          });
+          const modalType = extracted.type;
+          if (modalType === "income") {
+            openModal("income", {
+              source: extracted.category,
+              note: extracted.note || transcript,
+              date: today,
+            });
+          } else {
+            openModal("expense", {
+              category: extracted.category,
+              note: extracted.note || transcript,
+              date: today,
+              source: "voice",
+            });
+          }
         } else {
           openModal("expense", {
             note: transcript,
@@ -376,11 +410,13 @@ export function VoiceLogButton() {
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 bg-text-primary text-white text-sm font-medium rounded-xl shadow-lg animate-fade-in-up max-w-[calc(100vw-2rem)]"
         >
           <span className="truncate">
-            Added: {successToast.category} — Rs. {formatRs(successToast.amount)}
+            Added: {successToast.label} —{" "}
+            {successToast.type === "income" ? "+" : "-"}Rs.{" "}
+            {formatRs(successToast.amount)}
           </span>
           <button
             type="button"
-            onClick={handleEditSavedExpense}
+            onClick={handleEditSavedTransaction}
             className="shrink-0 text-accent font-semibold hover:underline cursor-pointer"
           >
             Edit

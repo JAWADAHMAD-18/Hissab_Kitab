@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/requireAuth";
 import { withErrorHandler } from "@/lib/withErrorHandler";
 import { success } from "@/lib/apiResponse";
 import { AppError } from "@/lib/AppError";
-import { transcribeAudio, extractExpenseFromVoice } from "@/lib/groq";
+import { transcribeAudio, extractTransactionFromVoice } from "@/lib/groq";
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   await requireAuth(req);
@@ -21,7 +21,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return success({ transcript: null, extracted: null });
   }
 
-  const extracted = await extractExpenseFromVoice(transcript);
+  const extracted = await extractTransactionFromVoice(transcript);
 
   return success({ transcript, extracted });
 });

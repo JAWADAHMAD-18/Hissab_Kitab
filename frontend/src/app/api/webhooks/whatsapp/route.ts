@@ -3,13 +3,15 @@ import crypto from "crypto";
 import { connectToDatabase } from "@/lib/db";
 import User from "@/models/User";
 import Expense from "@/models/Expense";
+import Income from "@/models/Income";
 import {
   downloadMedia,
   getMediaUrl,
   normalizePhoneNumber,
   sendTextMessage,
 } from "@/lib/whatsapp";
-import { transcribeAudio, extractExpenseFromVoice } from "@/lib/groq";
+import { transcribeAudio, extractTransactionFromVoice } from "@/lib/groq";
+import { ExpenseCategory, IncomeSource } from "@/types";
 
 function verifyWebhookSignature(
   rawBody: string,
@@ -192,7 +194,7 @@ export async function POST(req: NextRequest) {
       return new NextResponse("OK", { status: 200 });
     }
 
-    const extracted = await extractExpenseFromVoice(transcript);
+    const extracted = await extractTransactionFromVoice(transcript);
 
     if (!extracted || extracted.amount == null) {
       await safeReply(
@@ -203,19 +205,33 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date();
-    await Expense.create({
-      userId: user._id,
-      amount: extracted.amount,
-      category: extracted.category,
-      note: extracted.note || transcript,
-      date: now,
-      month: now.toISOString().slice(0, 7),
-      source: "voice",
-    });
+    const month = now.toISOString().slice(0, 7);
+    const sign = extracted.type === "income" ? "+" : "-";
+
+    if (extracted.type === "income") {
+      await Income.create({
+        userId: user._id,
+        amount: extracted.amount,
+        source: extracted.category as IncomeSource,
+        note: extracted.note || transcript,
+        date: now,
+        month,
+      });
+    } else {
+      await Expense.create({
+        userId: user._id,
+        amount: extracted.amount,
+        category: extracted.category as ExpenseCategory,
+        note: extracted.note || transcript,
+        date: now,
+        month,
+        source: "voice",
+      });
+    }
 
     await safeReply(
       from,
-      `✅ Added: ${extracted.category} — Rs. ${formatRs(extracted.amount)}`
+      `✅ Added: ${extracted.category} — ${sign}Rs. ${formatRs(extracted.amount)}`
     );
   } catch (err) {
     console.error("WhatsApp webhook processing error:", err);
