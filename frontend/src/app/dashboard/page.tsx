@@ -116,21 +116,19 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   return (
     <div className="max-w-7xl mx-auto px-6 lg:px-12 py-8 lg:py-12 flex flex-col gap-8">
       {/* Top Row: Switcher, Statement Download & Quick Add Buttons */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-3">
-          <MonthSwitcher
-            selectedMonth={selectedMonth}
-            currentMonth={currentMonthStr}
-          />
-          <DownloadStatementButton
-            monthLabel={new Date(selectedMonth + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-            selectedMonth={selectedMonth}
-            transactions={allSortedTransactions}
-            totalIncome={incomeThisMonth}
-            totalExpense={spentThisMonth}
-            balance={incomeThisMonth - spentThisMonth}
-          />
-        </div>
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <MonthSwitcher
+          selectedMonth={selectedMonth}
+          currentMonth={currentMonthStr}
+        />
+        <DownloadStatementButton
+          monthLabel={new Date(selectedMonth + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+          selectedMonth={selectedMonth}
+          transactions={allSortedTransactions}
+          totalIncome={incomeThisMonth}
+          totalExpense={spentThisMonth}
+          balance={incomeThisMonth - spentThisMonth}
+        />
         <QuickAddButtons />
       </div>
 

@@ -330,7 +330,7 @@ export function VoiceLogButton() {
             type="button"
             onClick={handleClick}
             aria-label="Stop voice recording"
-            className="inline-flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold rounded-xl border border-border bg-surface hover:bg-background text-text-primary shadow-xs cursor-pointer transition-colors"
+            className="inline-flex items-center gap-2 sm:gap-2.5 px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-semibold rounded-xl border border-border bg-surface hover:bg-background text-text-primary shadow-xs cursor-pointer transition-colors"
           >
             <motion.span
               aria-hidden="true"
@@ -345,7 +345,7 @@ export function VoiceLogButton() {
           <button
             type="button"
             disabled
-            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl border border-border bg-surface text-text-muted shadow-xs opacity-80 cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-semibold rounded-xl border border-border bg-surface text-text-muted shadow-xs opacity-80 cursor-not-allowed"
           >
             <Loader2 className="w-4 h-4 animate-spin" />
             Listening...
@@ -355,7 +355,7 @@ export function VoiceLogButton() {
             type="button"
             onClick={handleClick}
             aria-label="Log expense by voice"
-            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl border border-border bg-surface hover:bg-background text-text-primary shadow-xs cursor-pointer transition-colors"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-semibold rounded-xl border border-border bg-surface hover:bg-background text-text-primary shadow-xs cursor-pointer transition-colors"
           >
             <Mic className="w-4 h-4" />
             Voice Log

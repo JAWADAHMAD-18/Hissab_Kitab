@@ -54,18 +54,18 @@ export function Navbar() {
         scrolled ? "border-b border-border shadow-xs" : "border-b border-transparent"
       }`}
     >
-      <div className="max-w-7xl mx-auto px-6 lg:px-12 py-5 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-4 sm:py-5 flex items-center justify-between gap-2 min-w-0">
         <Link
           href="/"
-          className="text-2xl font-extrabold text-text-primary tracking-tight flex items-center gap-2.5 hover:opacity-90 transition-opacity"
+          className="text-lg sm:text-xl font-extrabold text-text-primary tracking-tight flex items-center gap-2 sm:gap-2.5 hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
         >
-          <span className="w-3.5 h-3.5 rounded-full bg-accent inline-block shrink-0"></span>
+          <span className="w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full bg-accent inline-block shrink-0"></span>
           Hisab Kitab
         </Link>
 
-        <nav className="flex items-center gap-3 sm:gap-5">
+        <nav className="flex items-center gap-2 sm:gap-3 md:gap-5 min-w-0 [&_a]:text-sm sm:[&_a]:text-base">
           {isAuthenticated ? (
-            <div className="relative flex items-center gap-4" ref={dropdownRef}>
+            <div className="relative flex items-center gap-2 sm:gap-4 min-w-0" ref={dropdownRef}>
               <NavLink href="/dashboard">Dashboard</NavLink>
               <NavLink href="/transactions">Transactions</NavLink>
 
@@ -74,7 +74,7 @@ export function Navbar() {
                 type="button"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
                 aria-label="User menu"
-                className="w-9 h-9 rounded-full bg-accent/10 border border-accent/20 text-accent font-semibold text-sm flex items-center justify-center hover:bg-accent/20 transition-colors cursor-pointer"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-accent/10 border border-accent/20 text-accent font-semibold text-xs sm:text-sm flex items-center justify-center hover:bg-accent/20 transition-colors cursor-pointer shrink-0"
               >
                 {userInitial}
               </button>
