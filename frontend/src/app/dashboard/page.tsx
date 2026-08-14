@@ -36,13 +36,29 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   const userObjId = new mongoose.Types.ObjectId(userId);
 
-  // 1. Fetch expenses for selected month
-  const monthExpenses = await Expense.find({
-    userId: userObjId,
-    month: selectedMonth,
-  })
-    .sort({ date: -1 })
-    .lean();
+  // Parallel fetch — all queries run simultaneously, total wait = slowest single query
+  const [monthExpenses, monthIncomes, prevIncomeAgg, prevExpenseAgg] = await Promise.all([
+    Expense.find({
+      userId: userObjId,
+      month: selectedMonth,
+    })
+      .sort({ date: -1 })
+      .lean(),
+    Income.find({
+      userId: userObjId,
+      month: selectedMonth,
+    })
+      .sort({ date: -1 })
+      .lean(),
+    Income.aggregate([
+      { $match: { userId: userObjId, month: { $lt: selectedMonth } } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]),
+    Expense.aggregate([
+      { $match: { userId: userObjId, month: { $lt: selectedMonth } } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]),
+  ]);
 
   const spentThisMonth = monthExpenses.reduce((acc, curr) => acc + curr.amount, 0);
 
@@ -56,31 +72,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     .map(([category, amount]) => ({ category, amount }))
     .sort((a, b) => b.amount - a.amount);
 
-  // 2. Fetch income for selected month
-  const monthIncomes = await Income.find({
-    userId: userObjId,
-    month: selectedMonth,
-  })
-    .sort({ date: -1 })
-    .lean();
-
   const incomeThisMonth = monthIncomes.reduce((acc, curr) => acc + curr.amount, 0);
   const remainingThisMonth = incomeThisMonth - spentThisMonth;
 
-  // 3. Calculate cumulative balance (ALL income - ALL expenses up to selected month)
-  const incomeAgg = await Income.aggregate([
-    { $match: { userId: userObjId, month: { $lte: selectedMonth } } },
-    { $group: { _id: null, total: { $sum: "$amount" } } },
-  ]);
-
-  const expenseAgg = await Expense.aggregate([
-    { $match: { userId: userObjId, month: { $lte: selectedMonth } } },
-    { $group: { _id: null, total: { $sum: "$amount" } } },
-  ]);
-
-  const totalAllIncome = incomeAgg[0]?.total || 0;
-  const totalAllExpenses = expenseAgg[0]?.total || 0;
-  const cumulativeBalance = totalAllIncome - totalAllExpenses;
+  const prevIncomeTotal = prevIncomeAgg[0]?.total || 0;
+  const prevExpenseTotal = prevExpenseAgg[0]?.total || 0;
+  const carriedForward = prevIncomeTotal - prevExpenseTotal;
 
   // 4. Combined last ~8 transactions for selected month
   const mappedIncomes: TransactionItem[] = monthIncomes.map((inc) => ({
@@ -136,7 +133,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       <DashboardStats
         spentThisMonth={spentThisMonth}
         remainingThisMonth={remainingThisMonth}
-        cumulativeBalance={cumulativeBalance}
+        incomeThisMonth={incomeThisMonth}
+        carriedForward={carriedForward}
       />
 
       {/* Month Runway Widget (Current Month Only) */}

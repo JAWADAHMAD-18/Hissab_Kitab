@@ -3,13 +3,15 @@ import React from "react";
 interface DashboardStatsProps {
   spentThisMonth: number;
   remainingThisMonth: number;
-  cumulativeBalance: number;
+  incomeThisMonth: number;
+  carriedForward: number;
 }
 
 export function DashboardStats({
   spentThisMonth,
   remainingThisMonth,
-  cumulativeBalance,
+  incomeThisMonth,
+  carriedForward,
 }: DashboardStatsProps) {
   const formatCurrency = (val: number) => {
     const formatted = Math.abs(val).toLocaleString("en-IN", {
@@ -44,14 +46,23 @@ export function DashboardStats({
         </span>
       </div>
 
-      {/* 3. Cumulative Balance */}
+      {/* 3. Income This Month */}
       <div className="bg-surface border border-border rounded-2xl p-6 shadow-xs flex flex-col gap-2">
         <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-          Balance (Cumulative)
+          Income This Month
         </span>
-        <span className="text-3xl font-extrabold text-text-primary tracking-tight">
-          {formatCurrency(cumulativeBalance)}
+        <span className="text-3xl font-extrabold text-income tracking-tight">
+          {formatCurrency(incomeThisMonth)}
         </span>
+        {carriedForward > 0 && (
+          <div
+            className="text-xs text-text-muted flex items-center gap-1 mt-1 cursor-help"
+            title="Your net savings carried forward from all previous months"
+          >
+            <span className="text-income font-semibold">+</span>
+            <span>Rs. {carriedForward.toLocaleString("en-IN", { maximumFractionDigits: 0 })} from last month</span>
+          </div>
+        )}
       </div>
     </div>
   );
