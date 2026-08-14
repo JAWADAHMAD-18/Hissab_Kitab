@@ -9,6 +9,7 @@ export interface WeekGroup {
   totalOut: number;
 }
 
+// Group transactions by week
 export function groupTransactionsByWeek(
   transactions: TransactionItem[],
   selectedMonth: string // "YYYY-MM"
