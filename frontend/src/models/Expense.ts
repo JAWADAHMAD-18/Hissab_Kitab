@@ -54,6 +54,14 @@ const ExpenseSchema = new Schema<IExpense>(
       default: "manual",
       required: [true, "Source is required"],
     },
+    waMessageId: {
+      type: String,
+      required: false,
+    },
+    waIndex: {
+      type: Number,
+      required: false,
+    },
   },
   {
     timestamps: true,
@@ -63,6 +71,14 @@ const ExpenseSchema = new Schema<IExpense>(
 // Compound index for efficient user + month queries and date queries
 ExpenseSchema.index({ userId: 1, month: 1 });
 ExpenseSchema.index({ userId: 1, date: -1 });
+ExpenseSchema.index(
+  { waMessageId: 1, waIndex: 1 },
+  { unique: true, partialFilterExpression: { waMessageId: { $type: "string" } } }
+);
+ExpenseSchema.index(
+  { userId: 1, waMessageId: 1 },
+  { partialFilterExpression: { waMessageId: { $type: "string" } } }
+);
 
 const Expense: Model<IExpense> =
   mongoose.models.Expense || mongoose.model<IExpense>("Expense", ExpenseSchema);

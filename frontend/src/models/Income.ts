@@ -41,6 +41,14 @@ const IncomeSchema = new Schema<IIncome>(
       trim: true,
       default: "",
     },
+    waMessageId: {
+      type: String,
+      required: false,
+    },
+    waIndex: {
+      type: Number,
+      required: false,
+    },
   },
   {
     timestamps: true,
@@ -50,6 +58,14 @@ const IncomeSchema = new Schema<IIncome>(
 // Compound index for efficient user + month queries
 IncomeSchema.index({ userId: 1, month: 1 });
 IncomeSchema.index({ userId: 1, date: -1 });
+IncomeSchema.index(
+  { waMessageId: 1, waIndex: 1 },
+  { unique: true, partialFilterExpression: { waMessageId: { $type: "string" } } }
+);
+IncomeSchema.index(
+  { userId: 1, waMessageId: 1 },
+  { partialFilterExpression: { waMessageId: { $type: "string" } } }
+);
 
 const Income: Model<IIncome> =
   mongoose.models.Income || mongoose.model<IIncome>("Income", IncomeSchema);

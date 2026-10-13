@@ -48,6 +48,8 @@ const UserSchema = new Schema<IUser>(
   }
 );
 
+UserSchema.index({ whatsappNumber: 1 }, { sparse: true });
+
 const User: Model<IUser> =
   mongoose.models.User || mongoose.model<IUser>("User", UserSchema);
 

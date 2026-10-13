@@ -2,16 +2,48 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { connectToDatabase } from "@/lib/db";
 import User from "@/models/User";
-import Expense from "@/models/Expense";
-import Income from "@/models/Income";
 import {
   downloadMedia,
   getMediaUrl,
   normalizePhoneNumber,
   sendTextMessage,
 } from "@/lib/whatsapp";
-import { transcribeAudio, extractTransactionFromVoice } from "@/lib/groq";
-import { ExpenseCategory, IncomeSource } from "@/types";
+import { transcribeAudio, extractTransactionsFromMessage } from "@/lib/groq";
+import { claimMessage, finalizeClaim, releaseClaim } from "@/lib/whatsappClaim";
+import { saveEntries } from "@/lib/whatsappSave";
+import { startUndo, confirmUndo, cancelUndo } from "@/lib/whatsappUndo";
+import { checkRateLimit } from "@/lib/rateLimit";
+
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+const HELP_MESSAGE =
+  "Send an expense or deposit, e.g. 'aj shawarma 500 ka' or 'salary 50000 mili'. " +
+  "You can send several in one message: 'chai 50, rickshaw 200'. " +
+  "Voice notes work too. Send 'undo' to delete your last message's entries.";
+
+const UNDO_COMMANDS = new Set([
+  "undo", "del", "delete", "delete last", "remove",
+  "galat", "galat ho gya", "last delete",
+]);
+
+const CONFIRM_COMMANDS = new Set([
+  "yes", "y", "haan", "han", "ha", "ji", "ok", "confirm",
+]);
+
+const CANCEL_COMMANDS = new Set([
+  "no", "nahi", "nai", "cancel",
+]);
+
+const AMOUNT_WORDS_REGEX =
+  /sau|sou|hazar|hazaar|lakh|lac|crore|karor|ہزار|سو|لاکھ|کروڑ/i;
+
+const DIGIT_REGEX = /[0-9\u0660-\u0669\u06F0-\u06F9]/;
+
+const AMOUNT_CAP = 10_000_000;
+
+const MAX_TEXT_LENGTH = 300;
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function verifyWebhookSignature(
   rawBody: string,
@@ -41,18 +73,12 @@ function formatRs(amount: number): string {
 }
 
 async function findVerifiedUserByPhone(from: string) {
-  const normalizedFrom = normalizePhoneNumber(from);
+  const digits = normalizePhoneNumber(from);
 
-  const candidates = await User.find({
+  return User.findOne({
     whatsappVerified: true,
-    whatsappNumber: { $exists: true, $ne: null },
+    whatsappNumber: { $in: [`+${digits}`, digits] },
   }).lean();
-
-  return (
-    candidates.find(
-      (user) => normalizePhoneNumber(user.whatsappNumber || "") === normalizedFrom
-    ) ?? null
-  );
 }
 
 async function safeReply(to: string, body: string): Promise<void> {
@@ -81,11 +107,281 @@ async function tryLinkUserByCode(from: string, code: string): Promise<boolean> {
 
   await safeReply(
     from,
-    "✅ Linked to Hisab Kitab! Send a voice note anytime to log an expense."
+    "✅ Linked to Hisab Kitab! Send a voice note or text anytime to log an expense."
   );
 
   return true;
 }
+
+/**
+ * Normalize text for command matching: trim, lowercase, collapse whitespace,
+ * strip trailing punctuation (. ! ?).
+ */
+function normalizeForCommand(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[.!?]+$/, "");
+}
+
+/**
+ * Pre-filter for text messages: must contain a digit or an amount word.
+ * Returns true if the text passes the pre-filter and should be sent to the LLM.
+ */
+function passesPreFilter(text: string): boolean {
+  return DIGIT_REGEX.test(text) || AMOUNT_WORDS_REGEX.test(text);
+}
+
+// ─── Rate-limit helpers ─────────────────────────────────────────────────────
+
+async function checkUserRateLimit(userId: string): Promise<boolean> {
+  const { allowed } = await checkRateLimit({
+    key: `wa:user:${userId}`,
+    limit: 60,
+    windowSeconds: 3600,
+  });
+  return allowed;
+}
+
+async function canSendUserBlockedReply(userId: string): Promise<boolean> {
+  const { allowed } = await checkRateLimit({
+    key: `wa:user-blocked-reply:${userId}`,
+    limit: 1,
+    windowSeconds: 600,
+  });
+  return allowed;
+}
+
+async function checkUnlinkedRateLimit(from: string): Promise<boolean> {
+  const { allowed } = await checkRateLimit({
+    key: `wa:unlinked:${from}`,
+    limit: 3,
+    windowSeconds: 3600,
+  });
+  return allowed;
+}
+
+// ─── Single-message handler ─────────────────────────────────────────────────
+
+interface IncomingMessage {
+  id: string;
+  from: string;
+  type: string;
+  text?: { body: string };
+  audio?: { id: string; mime_type?: string };
+}
+
+async function handleMessage(message: IncomingMessage): Promise<{
+  outcome: string;
+  entriesSaved: number;
+  userId?: string;
+}> {
+  const { id: messageId, from, type } = message;
+
+  // 1. Dedupe claim
+  const claim = await claimMessage(messageId, from, type);
+  if (!claim.claimed) {
+    return { outcome: "duplicate", entriesSaved: 0 };
+  }
+
+  try {
+    // 2. Linked-code check (text only)
+    if (type === "text") {
+      const bodyText = message.text?.body?.trim() ?? "";
+      if (/^\d{6}$/.test(bodyText)) {
+        const linked = await tryLinkUserByCode(from, bodyText);
+        if (linked) {
+          await finalizeClaim(messageId, undefined, 0, []);
+          return { outcome: "linked", entriesSaved: 0 };
+        }
+        // Invalid code — fall through to user lookup
+      }
+    }
+
+    // 3. Resolve user
+    const user = await findVerifiedUserByPhone(from);
+    if (!user) {
+      // Unlinked rate limit
+      const canReply = await checkUnlinkedRateLimit(from);
+      if (canReply) {
+        await safeReply(
+          from,
+          "This number isn't linked to a Hisab Kitab account yet. Connect it in Settings first."
+        );
+      }
+      await finalizeClaim(messageId, undefined, 0, []);
+      return { outcome: "unlinked", entriesSaved: 0 };
+    }
+
+    const userId = String(user._id);
+
+    // 4. Per-user rate limit (before any Groq/Whisper call)
+    if (type === "audio" || type === "text") {
+      const allowed = await checkUserRateLimit(userId);
+      if (!allowed) {
+        const canReply = await canSendUserBlockedReply(userId);
+        if (canReply) {
+          await safeReply(
+            from,
+            "You're sending messages too fast. Please try again in a while."
+          );
+        }
+        await finalizeClaim(messageId, userId, 0, []);
+        return { outcome: "rate_limited", entriesSaved: 0, userId };
+      }
+    }
+
+    // 5. Type handling
+    let transcript: string | null = null;
+    let entrySource: "voice" | "whatsapp";
+
+    if (type === "audio") {
+      // Audio path: download -> Whisper -> transcript
+      const mediaId = message.audio?.id;
+      if (!mediaId) {
+        await safeReply(from, "Couldn't quite catch that — try recording again?");
+        await finalizeClaim(messageId, userId, 0, []);
+        return { outcome: "no_media_id", entriesSaved: 0, userId };
+      }
+
+      const mediaUrl = await getMediaUrl(mediaId);
+      const audioBuffer = await downloadMedia(mediaUrl);
+      const mimeType = message.audio?.mime_type || "audio/ogg";
+      const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: mimeType });
+
+      transcript = await transcribeAudio(audioBlob);
+      if (!transcript) {
+        await safeReply(from, "Couldn't quite catch that — try recording again?");
+        await finalizeClaim(messageId, userId, 0, []);
+        return { outcome: "transcription_failed", entriesSaved: 0, userId };
+      }
+
+      entrySource = "voice";
+    } else if (type === "text") {
+      const bodyText = message.text?.body?.trim() ?? "";
+      const normalized = normalizeForCommand(bodyText);
+
+      // 6. Command matching
+      if (UNDO_COMMANDS.has(normalized)) {
+        const result = await startUndo(userId);
+        await safeReply(from, result.reply);
+        await finalizeClaim(messageId, userId, 0, []);
+        return { outcome: "undo_start", entriesSaved: 0, userId };
+      }
+
+      if (CONFIRM_COMMANDS.has(normalized)) {
+        const result = await confirmUndo(userId);
+        if (result) {
+          await safeReply(from, result.reply);
+        } else {
+          await safeReply(from, HELP_MESSAGE);
+        }
+        await finalizeClaim(messageId, userId, 0, []);
+        return { outcome: "undo_confirm", entriesSaved: 0, userId };
+      }
+
+      if (CANCEL_COMMANDS.has(normalized)) {
+        const reply = await cancelUndo(userId);
+        await safeReply(from, reply);
+        await finalizeClaim(messageId, userId, 0, []);
+        return { outcome: "undo_cancel", entriesSaved: 0, userId };
+      }
+
+      // 7. Length guard
+      if (bodyText.length > MAX_TEXT_LENGTH) {
+        await safeReply(from, HELP_MESSAGE);
+        await finalizeClaim(messageId, userId, 0, []);
+        return { outcome: "too_long", entriesSaved: 0, userId };
+      }
+
+      // Pre-filter: must contain a digit or amount word
+      if (!passesPreFilter(bodyText)) {
+        await safeReply(from, HELP_MESSAGE);
+        await finalizeClaim(messageId, userId, 0, []);
+        return { outcome: "prefilter_fail", entriesSaved: 0, userId };
+      }
+
+      transcript = bodyText;
+      entrySource = "whatsapp";
+    } else {
+      // Unsupported message type (image, sticker, location, etc.)
+      await safeReply(from, HELP_MESSAGE);
+      await finalizeClaim(messageId, userId, 0, []);
+      return { outcome: "unsupported_type", entriesSaved: 0, userId };
+    }
+
+    // 8. Extract transactions from text
+    const extracted = await extractTransactionsFromMessage(transcript);
+
+    if (!extracted) {
+      await safeReply(from, "Couldn't process that right now. Please try again.");
+      await releaseClaim(messageId);
+      return { outcome: "extraction_failed", entriesSaved: 0, userId };
+    }
+
+    if (extracted.entries.length === 0) {
+      await safeReply(from, HELP_MESSAGE);
+      await finalizeClaim(messageId, userId, 0, []);
+      return { outcome: "no_entries", entriesSaved: 0, userId };
+    }
+
+    // 9. Amount cap
+    const validEntries = extracted.entries.filter((e) => e.amount <= AMOUNT_CAP);
+    const cappedCount = extracted.entries.length - validEntries.length;
+
+    if (validEntries.length === 0) {
+      await safeReply(
+        from,
+        "That amount looks too large. Please check and send again."
+      );
+      await finalizeClaim(messageId, userId, 0, []);
+      return { outcome: "all_capped", entriesSaved: 0, userId };
+    }
+
+    // 10. Save entries idempotently
+    const { savedCount, summaryLines } = await saveEntries({
+      userId,
+      messageId,
+      entries: validEntries,
+      source: entrySource,
+    });
+
+    // Build reply
+    let replyText: string;
+    if (savedCount === 1 && extracted.skipped === 0 && cappedCount === 0 && !extracted.truncated) {
+      const sign = validEntries[0].type === "income" ? "+" : "-";
+      replyText = `✅ Added: ${validEntries[0].category} — ${sign}Rs. ${formatRs(validEntries[0].amount)}`;
+    } else {
+      const bullets = summaryLines.map((l) => `• ${l}`).join("\n");
+      replyText = `✅ Added ${savedCount} entries:\n${bullets}`;
+
+      if (extracted.truncated) {
+        replyText += "\n(Only the first 5 were saved.)";
+      }
+
+      if (extracted.skipped > 0 || cappedCount > 0) {
+        const skippedTotal = extracted.skipped + cappedCount;
+        replyText += `\n(${skippedTotal} skipped — couldn't read the amount.)`;
+      }
+    }
+
+    await safeReply(from, replyText);
+    await finalizeClaim(messageId, userId, savedCount, summaryLines);
+
+    return { outcome: "saved", entriesSaved: savedCount, userId };
+  } catch (err) {
+    // Release claim so a retry can re-process
+    try {
+      await releaseClaim(messageId);
+    } catch {
+      // Best-effort release
+    }
+    throw err;
+  }
+}
+
+// ─── GET: Webhook verification ──────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -107,6 +403,8 @@ export async function GET(req: NextRequest) {
   return new NextResponse("Forbidden", { status: 403 });
 }
 
+// ─── POST: Webhook handler ──────────────────────────────────────────────────
+
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
 
@@ -114,131 +412,65 @@ export async function POST(req: NextRequest) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  // Process synchronously before ack — Groq calls finish within Meta's timeout.
-  // If this ever becomes noticeably slow, revisit with an async/background-job pattern.
   try {
     const body = JSON.parse(rawBody) as {
       entry?: Array<{
         changes?: Array<{
           value?: {
-            messages?: Array<{
-              from: string;
-              type: string;
-              text?: { body: string };
-              audio?: { id: string; mime_type?: string };
-            }>;
+            messages?: IncomingMessage[];
             statuses?: unknown[];
           };
         }>;
       }>;
     };
 
-    const value = body.entry?.[0]?.changes?.[0]?.value;
-    if (!value?.messages?.length) {
-      return new NextResponse("OK", { status: 200 });
-    }
-
-    const message = value.messages[0];
-    const from = message.from;
-    const type = message.type;
-
     await connectToDatabase();
 
-    if (type === "text") {
-      const bodyText = message.text?.body?.trim() ?? "";
-      if (/^\d{6}$/.test(bodyText)) {
-        const linked = await tryLinkUserByCode(from, bodyText);
-        if (linked) {
-          return new NextResponse("OK", { status: 200 });
+    // Iterate ALL messages across all entries and changes
+    const entries = body.entry ?? [];
+    for (const entry of entries) {
+      const changes = entry.changes ?? [];
+      for (const change of changes) {
+        const value = change.value;
+        if (!value?.messages?.length) {
+          continue;
+        }
+
+        for (const message of value.messages) {
+          const startMs = Date.now();
+          try {
+            const result = await handleMessage(message);
+            // Structured log — no message bodies, transcripts, phone numbers, or tokens
+            console.log(
+              JSON.stringify({
+                messageId: message.id,
+                userId: result.userId,
+                type: message.type,
+                outcome: result.outcome,
+                entriesSaved: result.entriesSaved,
+                ms: Date.now() - startMs,
+              })
+            );
+          } catch (err) {
+            console.error(
+              JSON.stringify({
+                messageId: message.id,
+                type: message.type,
+                outcome: "error",
+                error: err instanceof Error ? err.message : "Unknown error",
+                ms: Date.now() - startMs,
+              })
+            );
+          }
         }
       }
     }
-
-    const user = await findVerifiedUserByPhone(from);
-    if (!user) {
-      await safeReply(
-        from,
-        "This number isn't linked to a Hisab Kitab account yet. Connect it in Settings first."
-      );
-      return new NextResponse("OK", { status: 200 });
-    }
-
-    if (type !== "audio") {
-      await safeReply(
-        from,
-        "Send a voice note to log an expense — e.g. 'lunch, 450 rupees'"
-      );
-      return new NextResponse("OK", { status: 200 });
-    }
-
-    const mediaId = message.audio?.id;
-    if (!mediaId) {
-      await safeReply(
-        from,
-        "Couldn't quite catch that — try recording again?"
-      );
-      return new NextResponse("OK", { status: 200 });
-    }
-
-    const mediaUrl = await getMediaUrl(mediaId);
-    const audioBuffer = await downloadMedia(mediaUrl);
-    const mimeType = message.audio?.mime_type || "audio/ogg";
-    const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: mimeType });
-
-    const transcript = await transcribeAudio(audioBlob);
-    if (!transcript) {
-      await safeReply(
-        from,
-        "Couldn't quite catch that — try recording again?"
-      );
-      return new NextResponse("OK", { status: 200 });
-    }
-
-    const extracted = await extractTransactionFromVoice(transcript);
-
-    if (!extracted || extracted.amount == null) {
-      await safeReply(
-        from,
-        "Got it, but couldn't catch the amount clearly — try again with the amount stated clearly?"
-      );
-      return new NextResponse("OK", { status: 200 });
-    }
-
-    const now = new Date();
-    const month = now.toISOString().slice(0, 7);
-    const sign = extracted.type === "income" ? "+" : "-";
-
-    if (extracted.type === "income") {
-      await Income.create({
-        userId: user._id,
-        amount: extracted.amount,
-        source: extracted.category as IncomeSource,
-        note: extracted.note || transcript,
-        date: now,
-        month,
-      });
-    } else {
-      await Expense.create({
-        userId: user._id,
-        amount: extracted.amount,
-        category: extracted.category as ExpenseCategory,
-        note: extracted.note || transcript,
-        date: now,
-        month,
-        source: "voice",
-      });
-    }
-
-    await safeReply(
-      from,
-      `✅ Added: ${extracted.category} — ${sign}Rs. ${formatRs(extracted.amount)}`
-    );
   } catch (err) {
-    console.error("WhatsApp webhook processing error:", err);
+    console.error("WhatsApp webhook body parse error:", err instanceof Error ? err.message : "Unknown error");
   }
 
   return new NextResponse("OK", { status: 200 });
 }
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 30;

@@ -20,7 +20,7 @@ export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 export const PAYMENT_METHODS = ["Cash", "Card", "Bank"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
-export const EXPENSE_SOURCES = ["manual", "voice"] as const;
+export const EXPENSE_SOURCES = ["manual", "voice", "whatsapp"] as const;
 export type ExpenseSource = (typeof EXPENSE_SOURCES)[number];
 
 // User Interface
@@ -48,6 +48,8 @@ export interface IIncome {
   month: string; // YYYY-MM format
   recurring?: boolean;
   note?: string;
+  waMessageId?: string;
+  waIndex?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -63,6 +65,8 @@ export interface IExpense {
   paymentMethod?: PaymentMethod;
   note?: string;
   source: ExpenseSource;
+  waMessageId?: string;
+  waIndex?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
