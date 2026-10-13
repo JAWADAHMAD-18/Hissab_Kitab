@@ -296,3 +296,172 @@ export async function sendWeeklyReportEmail(
     throw new Error("Failed to send email via Brevo");
   }
 }
+
+export function getAppBaseUrl(): string {
+  const url =
+    process.env.APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+  return url.replace(/\/+$/, "");
+}
+
+export interface SendTransactionalEmailParams {
+  toEmail: string;
+  toName: string;
+  subject: string;
+  html: string;
+}
+
+export async function sendTransactionalEmail(
+  params: SendTransactionalEmailParams
+): Promise<void> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+  const senderName = process.env.BREVO_SENDER_NAME || "Hisab Kitab";
+
+  if (!apiKey || !senderEmail) {
+    throw new Error(
+      "Brevo is not configured (BREVO_API_KEY, BREVO_SENDER_EMAIL)"
+    );
+  }
+
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "api-key": apiKey,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      sender: { name: senderName, email: senderEmail },
+      to: [{ email: params.toEmail, name: params.toName }],
+      subject: params.subject,
+      htmlContent: params.html,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error("Brevo API error:", response.status, errorBody);
+    throw new Error(`Failed to send email via Brevo (status: ${response.status})`);
+  }
+}
+
+export interface SendPasswordResetEmailParams {
+  toEmail: string;
+  toName: string;
+  resetUrl: string;
+  isFirstTimeSetup: boolean;
+}
+
+export async function sendPasswordResetEmail(
+  params: SendPasswordResetEmailParams
+): Promise<void> {
+  const subject = params.isFirstTimeSetup
+    ? "Set your Hisab Kitab password"
+    : "Reset your Hisab Kitab password";
+
+  const firstName = params.toName.split(" ")[0] || params.toName;
+  const safeName = escapeHtml(firstName);
+  const safeUrl = escapeHtml(params.resetUrl);
+
+  const headline = params.isFirstTimeSetup
+    ? "Set your Hisab Kitab password"
+    : "Reset your Hisab Kitab password";
+
+  const introText = params.isFirstTimeSetup
+    ? "You requested to set a password for your Hisab Kitab account."
+    : "We received a request to reset your Hisab Kitab password.";
+
+  const googleNote = params.isFirstTimeSetup
+    ? `<p style="margin:0 0 16px 0;font-size:14px;line-height:1.6;color:#4B5563;">
+        You signed up with Google, so you don&apos;t have a password yet. Setting one lets you sign in with email too. Google sign-in will keep working.
+      </p>`
+    : "";
+
+  const buttonText = params.isFirstTimeSetup
+    ? "Set Password"
+    : "Reset Password";
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#FAFAFA;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <!-- Outer card -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:16px;">
+          <tr>
+            <td style="padding:32px;">
+              <!-- Header row: green dot + brand name -->
+              <table cellpadding="0" cellspacing="0" style="padding:0 0 20px 0;">
+                <tr>
+                  <td style="vertical-align:middle;padding-right:8px;">
+                    <div style="width:10px;height:10px;background:#059669;border-radius:50%;"></div>
+                  </td>
+                  <td style="vertical-align:middle;font-size:16px;font-weight:700;color:#111827;">
+                    Hisab Kitab
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Heading -->
+              <p style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:#111827;">
+                ${escapeHtml(headline)}
+              </p>
+
+              <!-- Greeting & Intro -->
+              <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#111827;">
+                Hi ${safeName},<br><br>
+                ${escapeHtml(introText)}
+              </p>
+
+              ${googleNote}
+
+              <!-- CTA button -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0 20px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="${safeUrl}" target="_blank" style="display:inline-block;background:#059669;color:#FFFFFF;font-size:15px;font-weight:600;text-decoration:none;padding:12px 28px;border-radius:8px;">
+                      ${escapeHtml(buttonText)} &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Fallback plain link -->
+              <p style="margin:0 0 24px 0;font-size:12px;line-height:1.5;color:#6B7280;word-break:break-all;text-align:center;">
+                Or copy and paste this URL into your browser:<br>
+                <a href="${safeUrl}" target="_blank" style="color:#059669;text-decoration:underline;">${safeUrl}</a>
+              </p>
+
+              <!-- Expiry & Security notes -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="padding:16px 0 0 0;border-top:1px solid #E5E7EB;">
+                <tr>
+                  <td style="font-size:13px;line-height:1.5;color:#6B7280;">
+                    <p style="margin:0 0 8px 0;">This link expires in 15 minutes and can be used once.</p>
+                    <p style="margin:0;">If you didn&apos;t request this, you can safely ignore this email.</p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Footer -->
+              <p style="margin:24px 0 0 0;text-align:center;font-size:12px;color:#9CA3AF;">
+                Sent by Hisab Kitab
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  await sendTransactionalEmail({
+    toEmail: params.toEmail,
+    toName: params.toName,
+    subject,
+    html,
+  });
+}
+

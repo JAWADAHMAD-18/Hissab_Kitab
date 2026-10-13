@@ -6,6 +6,7 @@ import User from "@/models/User";
 import { success } from "@/lib/apiResponse";
 import { AppError } from "@/lib/AppError";
 import { withErrorHandler } from "@/lib/withErrorHandler";
+import { validatePassword } from "@/lib/passwordPolicy";
 
 export const PATCH = withErrorHandler(async (req: NextRequest) => {
   const userId = await requireAuth(req);
@@ -18,8 +19,9 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     throw new AppError("Current and new password are required", 400);
   }
 
-  if (newPassword.length < 8) {
-    throw new AppError("New password must be at least 8 characters", 400);
+  const passwordError = validatePassword(newPassword);
+  if (passwordError) {
+    throw new AppError(passwordError, 400);
   }
 
   const user = await User.findById(userId);

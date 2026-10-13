@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { MIN_PASSWORD_LENGTH, validatePassword } from "@/lib/passwordPolicy";
 
 export function ChangePasswordSection() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -25,8 +26,9 @@ export function ChangePasswordSection() {
       setError("New passwords do not match.");
       return;
     }
-    if (newPassword.length < 8) {
-      setError("New password must be at least 8 characters.");
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     if (newPassword === currentPassword) {
@@ -105,7 +107,7 @@ export function ChangePasswordSection() {
               {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
-          <p className="text-xs text-text-muted">Minimum 8 characters</p>
+          <p className="text-xs text-text-muted">Minimum {MIN_PASSWORD_LENGTH} characters</p>
         </div>
 
         {/* Confirm new password */}

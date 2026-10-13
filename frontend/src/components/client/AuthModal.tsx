@@ -93,6 +93,7 @@ export function AuthModal() {
               <LoginForm
                 onToggleMode={() => openModal("signup")}
                 onSuccess={closeModal}
+                onNavigate={closeModal}
               />
             ) : (
               <SignupForm

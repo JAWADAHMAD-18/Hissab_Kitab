@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH } from "@/lib/passwordPolicy";
 
 interface SignupFormInputs {
   name: string;
@@ -152,8 +153,12 @@ export function SignupForm({ onToggleMode, onSuccess }: SignupFormProps) {
             {...register("password", {
               required: "Password is required",
               minLength: {
-                value: 6,
-                message: "Password must be at least 6 characters",
+                value: MIN_PASSWORD_LENGTH,
+                message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+              },
+              maxLength: {
+                value: MAX_PASSWORD_LENGTH,
+                message: `Password cannot exceed ${MAX_PASSWORD_LENGTH} characters`,
               },
             })}
             className="w-full px-3 py-2 bg-background border border-border rounded-md text-text-primary text-sm focus:outline-none focus:border-accent"

@@ -5,6 +5,7 @@ import User from "@/models/User";
 import { success } from "@/lib/apiResponse";
 import { AppError } from "@/lib/AppError";
 import { withErrorHandler } from "@/lib/withErrorHandler";
+import { validatePassword } from "@/lib/passwordPolicy";
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const body = await req.json();
@@ -18,8 +19,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     throw new AppError("Valid email is required", 400);
   }
 
-  if (!password || typeof password !== "string" || password.length < 6) {
-    throw new AppError("Password must be at least 6 characters long", 400);
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    throw new AppError(passwordError, 400);
   }
 
   await connectToDatabase();

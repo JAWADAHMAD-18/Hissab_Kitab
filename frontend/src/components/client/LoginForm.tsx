@@ -14,9 +14,10 @@ interface LoginFormInputs {
 interface LoginFormProps {
   onToggleMode?: () => void;
   onSuccess?: () => void;
+  onNavigate?: () => void;
 }
 
-export function LoginForm({ onToggleMode, onSuccess }: LoginFormProps) {
+export function LoginForm({ onToggleMode, onSuccess, onNavigate }: LoginFormProps) {
   const router = useRouter();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -99,9 +100,20 @@ export function LoginForm({ onToggleMode, onSuccess }: LoginFormProps) {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-text-muted mb-1">
-            Password
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-medium text-text-muted">
+              Password
+            </label>
+            <Link
+              href="/forgot-password"
+              onClick={() => {
+                if (onNavigate) onNavigate();
+              }}
+              className="text-xs text-accent hover:underline font-medium"
+            >
+              Forgot password?
+            </Link>
+          </div>
           <input
             type="password"
             placeholder="••••••••"
