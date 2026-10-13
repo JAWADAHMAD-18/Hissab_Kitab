@@ -28,7 +28,7 @@ export async function checkRateLimit({
   const active = await RateLimit.findOneAndUpdate(
     { key, expiresAt: { $gt: now } },
     { $inc: { count: 1 } },
-    { new: true }
+    { returnDocument: "after" }
   );
 
   if (active) {
@@ -47,7 +47,7 @@ export async function checkRateLimit({
   const replaced = await RateLimit.findOneAndUpdate(
     { key, expiresAt: { $lte: now } },
     { $set: { count: 1, expiresAt } },
-    { new: true }
+    { returnDocument: "after" }
   );
 
   if (replaced) {
@@ -72,7 +72,7 @@ export async function checkRateLimit({
       const retry = await RateLimit.findOneAndUpdate(
         { key, expiresAt: { $gt: new Date() } },
         { $inc: { count: 1 } },
-        { new: true }
+        { returnDocument: "after" }
       );
 
       if (retry) {
