@@ -11,6 +11,8 @@ import { MonthRunway } from "@/components/server/MonthRunway";
 import { CategoryBreakdown } from "@/components/server/CategoryBreakdown";
 import { RecentActivity, TransactionItem } from "@/components/server/RecentActivity";
 import { DownloadStatementButton } from "@/components/client/DownloadStatementButton";
+import { getOnboardingState } from "@/lib/onboarding";
+import { OnboardingWizard } from "@/components/client/onboarding/OnboardingWizard";
 
 interface PageProps {
   searchParams: Promise<{ month?: string }>;
@@ -37,7 +39,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const userObjId = new mongoose.Types.ObjectId(userId);
 
   // Parallel fetch — all queries run simultaneously, total wait = slowest single query
-  const [monthExpenses, monthIncomes, prevIncomeAgg, prevExpenseAgg] = await Promise.all([
+  const [monthExpenses, monthIncomes, prevIncomeAgg, prevExpenseAgg, onboarding] = await Promise.all([
     Expense.find({
       userId: userObjId,
       month: selectedMonth,
@@ -58,7 +60,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       { $match: { userId: userObjId, month: { $lt: selectedMonth } } },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]),
+    getOnboardingState(userId),
   ]);
+
+  const { showOnboarding, firstName } = onboarding;
 
   const spentThisMonth = monthExpenses.reduce((acc, curr) => acc + curr.amount, 0);
 
@@ -153,6 +158,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         />
         <RecentActivity transactions={transactions} />
       </div>
+
+      {showOnboarding && <OnboardingWizard firstName={firstName} />}
     </div>
   );
 }

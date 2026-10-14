@@ -42,6 +42,10 @@ const UserSchema = new Schema<IUser>(
       required: false,
       select: false,
     },
+    onboardingCompletedAt: {
+      type: Date,
+      required: false,
+    },
   },
   {
     timestamps: true,

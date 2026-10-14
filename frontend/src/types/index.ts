@@ -34,6 +34,7 @@ export interface IUser {
   whatsappVerified?: boolean;
   whatsappVerificationCode?: string;
   whatsappVerificationExpiry?: Date;
+  onboardingCompletedAt?: Date;
   createdAt?: Date;
   updatedAt?: Date;
 }
