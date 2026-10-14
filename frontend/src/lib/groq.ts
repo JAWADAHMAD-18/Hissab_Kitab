@@ -23,7 +23,12 @@ export function getGroqClient(): Groq {
 }
 
 function stripJsonFences(raw: string): string {
-  return raw
+  const trimmed = raw.trim();
+  const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (codeBlockMatch) {
+    return codeBlockMatch[1].trim();
+  }
+  return trimmed
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
@@ -112,107 +117,182 @@ export async function extractTransactionsFromMessage(
     ];
 
     const client = getGroqClient();
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), GROQ_REQUEST_TIMEOUT_MS);
 
-    try {
-      if (jsonFormat) {
-        return await client.chat.completions.create(
-          {
-            model: GROQ_CHAT_MODEL,
-            messages,
-            temperature: 0.2,
-            max_tokens: 500,
-            response_format: { type: "json_object" },
-          },
-          { signal: controller.signal, maxRetries: 1 }
-        );
-      }
+    if (jsonFormat) {
       return await client.chat.completions.create(
         {
           model: GROQ_CHAT_MODEL,
           messages,
           temperature: 0.2,
           max_tokens: 500,
+          response_format: { type: "json_object" },
         },
-        { signal: controller.signal, maxRetries: 1 }
+        { timeout: GROQ_REQUEST_TIMEOUT_MS, maxRetries: 1 }
       );
-    } finally {
-      clearTimeout(timeout);
     }
+
+    return await client.chat.completions.create(
+      {
+        model: GROQ_CHAT_MODEL,
+        messages,
+        temperature: 0.2,
+        max_tokens: 500,
+      },
+      { timeout: GROQ_REQUEST_TIMEOUT_MS, maxRetries: 1 }
+    );
   };
 
   let completion;
   try {
     completion = await makeRequest(true);
-  } catch {
+  } catch (err: unknown) {
     // Retry without response_format if the model/SDK rejects it
     try {
       completion = await makeRequest(false);
-    } catch {
+    } catch (retryErr: unknown) {
+      const finalErr = (retryErr ?? err) as {
+        status?: number;
+        name?: string;
+        message?: string;
+      };
+      console.error({
+        stage: "groq_call",
+        status: finalErr?.status,
+        name: finalErr?.name,
+        message: finalErr?.message,
+      });
       return null;
     }
   }
 
   const raw = completion.choices[0]?.message?.content?.trim() ?? "";
-
-  try {
-    const parsed = JSON.parse(stripJsonFences(raw));
-
-    if (!parsed || typeof parsed !== "object") {
-      return null;
-    }
-
-    const rawEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
-    const maxEntries = 5;
-    const truncated = rawEntries.length > maxEntries;
-    let skipped = 0;
-
-    const entries: ExtractedTransaction[] = [];
-
-    for (let i = 0; i < Math.min(rawEntries.length, maxEntries); i++) {
-      const e = rawEntries[i];
-      if (!e || typeof e !== "object") {
-        skipped++;
-        continue;
-      }
-
-      const type: "income" | "expense" =
-        e.type === "income" ? "income" : "expense";
-
-      const amount =
-        typeof e.amount === "number" && Number.isFinite(e.amount) && e.amount > 0
-          ? e.amount
-          : null;
-
-      if (amount === null) {
-        skipped++;
-        continue;
-      }
-
-      let category =
-        typeof e.category === "string" ? e.category.trim() : "Other";
-
-      if (type === "income") {
-        if (!INCOME_SOURCES.includes(category as IncomeSource)) {
-          category = "Other";
-        }
-      } else if (!EXPENSE_CATEGORIES.includes(category as ExpenseCategory)) {
-        category = "Other";
-      }
-
-      const note =
-        typeof e.note === "string" && e.note.trim()
-          ? e.note.trim().slice(0, 200)
-          : input.slice(0, 200);
-
-      entries.push({ type, amount, category, note });
-    }
-
-    return { entries, truncated, skipped };
-  } catch {
+  if (!raw) {
+    console.error({
+      stage: "groq_parse",
+      rawLength: 0,
+      hasEntriesArray: false,
+    });
     return null;
   }
+
+  const cleaned = stripJsonFences(raw);
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    try {
+      const firstBrace = cleaned.indexOf("{");
+      const firstBracket = cleaned.indexOf("[");
+      let startIdx = -1;
+      let endIdx = -1;
+
+      if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+        startIdx = firstBrace;
+        endIdx = cleaned.lastIndexOf("}");
+      } else if (firstBracket !== -1) {
+        startIdx = firstBracket;
+        endIdx = cleaned.lastIndexOf("]");
+      }
+
+      if (startIdx !== -1 && endIdx > startIdx) {
+        parsed = JSON.parse(cleaned.slice(startIdx, endIdx + 1));
+      } else {
+        throw new Error("No JSON structure found");
+      }
+    } catch {
+      console.error({
+        stage: "groq_parse",
+        rawLength: raw.length,
+        hasEntriesArray: false,
+      });
+      return null;
+    }
+  }
+
+  const hasEntriesArray = Boolean(
+    parsed &&
+      typeof parsed === "object" &&
+      "entries" in parsed &&
+      Array.isArray((parsed as Record<string, unknown>).entries)
+  );
+
+  let rawEntries: unknown[] | null = null;
+
+  if (Array.isArray(parsed)) {
+    rawEntries = parsed;
+  } else if (
+    parsed &&
+    typeof parsed === "object" &&
+    "entries" in parsed &&
+    Array.isArray((parsed as Record<string, unknown>).entries)
+  ) {
+    rawEntries = (parsed as Record<string, unknown>).entries as unknown[];
+  } else if (
+    parsed &&
+    typeof parsed === "object" &&
+    ("type" in parsed || "amount" in parsed)
+  ) {
+    rawEntries = [parsed];
+  }
+
+  if (!rawEntries) {
+    console.error({
+      stage: "groq_parse",
+      rawLength: raw.length,
+      hasEntriesArray,
+    });
+    return null;
+  }
+
+  const maxEntries = 5;
+  const truncated = rawEntries.length > maxEntries;
+  let skipped = 0;
+
+  const entries: ExtractedTransaction[] = [];
+
+  for (let i = 0; i < Math.min(rawEntries.length, maxEntries); i++) {
+    const e = rawEntries[i];
+    if (!e || typeof e !== "object") {
+      skipped++;
+      continue;
+    }
+
+    const rec = e as Record<string, unknown>;
+
+    const type: "income" | "expense" =
+      rec.type === "income" ? "income" : "expense";
+
+    const amount =
+      typeof rec.amount === "number" && Number.isFinite(rec.amount) && rec.amount > 0
+        ? rec.amount
+        : null;
+
+    if (amount === null) {
+      skipped++;
+      continue;
+    }
+
+    let category =
+      typeof rec.category === "string" ? rec.category.trim() : "Other";
+
+    if (type === "income") {
+      if (!INCOME_SOURCES.includes(category as IncomeSource)) {
+        category = "Other";
+      }
+    } else if (!EXPENSE_CATEGORIES.includes(category as ExpenseCategory)) {
+      category = "Other";
+    }
+
+    const note =
+      typeof rec.note === "string" && rec.note.trim()
+        ? rec.note.trim().slice(0, 200)
+        : input.slice(0, 200);
+
+    entries.push({ type, amount, category, note });
+  }
+
+  return { entries, truncated, skipped };
 }
 
 /**
