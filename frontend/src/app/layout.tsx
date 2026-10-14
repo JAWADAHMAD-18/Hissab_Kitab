@@ -6,6 +6,7 @@ import { AuthModalProvider } from "@/components/client/AuthModalProvider";
 import { TransactionModalProvider } from "@/components/client/TransactionModalProvider";
 import { TransactionModal } from "@/components/client/TransactionModal";
 import { Navbar } from "@/components/client/Navbar";
+import { Footer } from "@/components/server/Footer";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -28,6 +29,7 @@ export default function RootLayout({
             <TransactionModalProvider>
               <Navbar />
               <main className="flex-1">{children}</main>
+              <Footer />
               <TransactionModal />
             </TransactionModalProvider>
           </AuthModalProvider>

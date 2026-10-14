@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { WelcomeStep } from "./WelcomeStep";
@@ -73,7 +73,9 @@ export function OnboardingWizard({ firstName }: OnboardingWizardProps) {
     } finally {
       setIsOpen(false);
       if (hasAddedEntriesRef.current) {
-        router.refresh();
+        startTransition(() => {
+          router.refresh();
+        });
       }
     }
   };

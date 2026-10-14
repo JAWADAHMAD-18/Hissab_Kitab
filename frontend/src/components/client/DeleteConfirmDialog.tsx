@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, startTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -62,7 +62,9 @@ export function DeleteConfirmDialog({
         return;
       }
 
-      router.refresh();
+      startTransition(() => {
+        router.refresh();
+      });
       onSuccess();
     } catch (err: unknown) {
       console.error("Delete transaction error:", err);

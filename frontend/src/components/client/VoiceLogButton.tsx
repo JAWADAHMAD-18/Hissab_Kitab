@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Loader2, Mic } from "lucide-react";
@@ -214,7 +214,9 @@ export function VoiceLogButton() {
           }
 
           const saved = saveData.data;
-          router.refresh();
+          startTransition(() => {
+            router.refresh();
+          });
           showSuccessToast({
             type: extracted.type,
             label: extracted.category,

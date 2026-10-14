@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, startTransition } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { INCOME_SOURCES, IncomeSource } from "@/types";
@@ -81,7 +81,9 @@ export function IncomeForm({ defaultValues, onSuccess }: IncomeFormProps) {
         return;
       }
 
-      router.refresh();
+      startTransition(() => {
+        router.refresh();
+      });
       onSuccess();
     } catch (err: unknown) {
       console.error("Income submit error:", err);

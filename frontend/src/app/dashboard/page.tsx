@@ -13,6 +13,7 @@ import { RecentActivity, TransactionItem } from "@/components/server/RecentActiv
 import { DownloadStatementButton } from "@/components/client/DownloadStatementButton";
 import { getOnboardingState } from "@/lib/onboarding";
 import { OnboardingWizard } from "@/components/client/onboarding/OnboardingWizard";
+import { DashboardLiveSync } from "@/components/client/DashboardLiveSync";
 
 interface PageProps {
   searchParams: Promise<{ month?: string }>;
@@ -160,6 +161,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       </div>
 
       {showOnboarding && <OnboardingWizard firstName={firstName} />}
+      <DashboardLiveSync month={selectedMonth} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, startTransition } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import {
@@ -95,7 +95,9 @@ export function ExpenseForm({ defaultValues, onSuccess }: ExpenseFormProps) {
         return;
       }
 
-      router.refresh();
+      startTransition(() => {
+        router.refresh();
+      });
       onSuccess();
     } catch (err: unknown) {
       console.error("Expense submit error:", err);
