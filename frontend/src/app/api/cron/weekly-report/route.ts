@@ -7,7 +7,7 @@ import { AppError } from "@/lib/AppError";
 import User from "@/models/User";
 import Income from "@/models/Income";
 import Expense from "@/models/Expense";
-import { getGroqClient } from "@/lib/groq";
+import { executeGroqChat } from "@/lib/groqChat";
 import { sendWeeklyReportEmail } from "@/lib/brevo";
 
 function verifyCronAuth(req: NextRequest) {
@@ -98,8 +98,7 @@ async function processUserReport(
 
   let narrative: string;
   try {
-    const completion = await getGroqClient().chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+    const rawNarrative = await executeGroqChat({
       messages: [
         {
           role: "system",
@@ -112,9 +111,12 @@ async function processUserReport(
         },
       ],
       temperature: 0.7,
-      max_tokens: 150,
+      maxCompletionTokens: 1150,
+      jsonFormat: false,
     });
-    narrative = completion.choices[0]?.message?.content?.trim() || "Here is your weekly summary.";
+    narrative =
+      rawNarrative ||
+      "Here is a quick summary of your week's activity. Keep tracking and keep your budget in check!";
   } catch (err) {
     console.error(`Failed to generate weekly narrative for ${user.email}:`, err);
     narrative = "Here is a quick summary of your week's activity. Keep tracking and keep your budget in check!";
