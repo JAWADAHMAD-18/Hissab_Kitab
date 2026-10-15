@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, AlertTriangle } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { clearAllCaches } from "@/lib/clearAllCaches";
 
 export function DeleteAccountSection() {
   const [showModal, setShowModal] = useState(false);
@@ -25,6 +26,7 @@ export function DeleteAccountSection() {
         setDeleting(false);
         return;
       }
+      await clearAllCaches();
       await signOut({ callbackUrl: "/" });
     } catch {
       setError("An unexpected error occurred.");

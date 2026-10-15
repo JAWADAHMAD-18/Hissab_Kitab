@@ -9,7 +9,7 @@ export async function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-border bg-surface">
+    <footer className="border-t border-border bg-surface [padding-bottom:env(safe-area-inset-bottom)]">
       <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10 lg:py-12">
         <nav
           aria-label="Footer"

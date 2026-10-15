@@ -9,6 +9,7 @@ import { LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/client/Button";
 import { useAuthModal } from "@/components/client/AuthModalProvider";
 import { NavLink } from "@/components/client/NavLink";
+import { clearAllCaches } from "@/lib/clearAllCaches";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -50,7 +51,7 @@ export function Navbar() {
       initial={{ y: -10, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className={`sticky top-0 z-50 bg-surface/95 backdrop-blur-md transition-all duration-300 ${
+      className={`sticky top-0 z-50 bg-surface/95 backdrop-blur-md transition-all duration-300 [padding-top:env(safe-area-inset-top)] ${
         scrolled ? "border-b border-border shadow-xs" : "border-b border-transparent"
       }`}
     >
@@ -109,8 +110,9 @@ export function Navbar() {
 
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         setDropdownOpen(false);
+                        await clearAllCaches();
                         signOut({ callbackUrl: "/login" });
                       }}
                       className="w-full text-left px-3.5 py-2 text-xs font-medium text-expense hover:bg-background transition-colors flex items-center gap-2 cursor-pointer"

@@ -14,6 +14,7 @@ import { DownloadStatementButton } from "@/components/client/DownloadStatementBu
 import { getOnboardingState } from "@/lib/onboarding";
 import { OnboardingWizard } from "@/components/client/onboarding/OnboardingWizard";
 import { DashboardLiveSync } from "@/components/client/DashboardLiveSync";
+import { InstallPrompt } from "@/components/client/InstallPrompt";
 
 interface PageProps {
   searchParams: Promise<{ month?: string }>;
@@ -161,6 +162,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       </div>
 
       {showOnboarding && <OnboardingWizard firstName={firstName} />}
+      {!showOnboarding && <InstallPrompt />}
       <DashboardLiveSync month={selectedMonth} />
     </div>
   );
