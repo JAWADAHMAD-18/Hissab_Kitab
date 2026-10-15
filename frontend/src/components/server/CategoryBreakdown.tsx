@@ -1,6 +1,7 @@
 import React from "react";
 import { ChartRenderer } from "@/components/client/ChartRenderer";
 import { BudgetsButton } from "@/components/client/budgets/BudgetsButton";
+import { BudgetNudge } from "@/components/client/budgets/BudgetNudge";
 import { BudgetStatus } from "@/lib/budgets";
 
 interface CategorySum {
@@ -14,6 +15,7 @@ interface CategoryBreakdownProps {
   budgets?: Record<string, number>;
   statuses?: BudgetStatus[];
   month?: string;
+  currentMonth?: string;
 }
 
 function formatRs(amount: number): string {
@@ -26,21 +28,39 @@ export function CategoryBreakdown({
   budgets = {},
   statuses = [],
   month = "",
+  currentMonth,
 }: CategoryBreakdownProps) {
+  const isCurrentMonth =
+    Boolean(month) &&
+    month === (currentMonth || new Date().toISOString().slice(0, 7));
+  const hasBudgets = Object.values(budgets).some((amount) => amount > 0);
+  const eligible = isCurrentMonth && !hasBudgets && totalSpent > 0;
+
   return (
-    <div className="bg-surface border border-border rounded-2xl p-6 shadow-xs flex flex-col gap-4">
-      {/* Header with Title, Set Budgets button, and category count */}
-      <div className="flex items-center justify-between gap-2">
+    <div className="bg-surface border border-border rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col gap-4">
+      {/* Header with Title, Set Budgets button, and category count (wraps cleanly at 360px) */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-lg font-bold text-text-primary tracking-tight">
           Category Breakdown
         </h3>
         <div className="flex items-center gap-2 sm:gap-3">
-          <BudgetsButton month={month} budgets={budgets} />
+          <BudgetsButton
+            month={month}
+            budgets={budgets}
+            hasBudgets={hasBudgets}
+          />
           <span className="text-xs font-semibold text-text-muted whitespace-nowrap">
             {categorySums.length} {categorySums.length === 1 ? "category" : "categories"}
           </span>
         </div>
       </div>
+
+      {/* Budget Nudge (ABOVE category list/chart, eligible when current month, spent > 0, zero budgets) */}
+      <BudgetNudge
+        eligible={eligible}
+        month={month}
+        budgets={budgets}
+      />
 
       {/* Budget Progress Rows (categories with a budget, plus Overall if Total budget exists) */}
       {statuses.length > 0 && (

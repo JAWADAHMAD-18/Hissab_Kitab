@@ -197,6 +197,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           budgets={effectiveBudgets}
           statuses={budgetStatuses}
           month={selectedMonth}
+          currentMonth={currentMonthStr}
         />
         <RecentActivity transactions={transactions} />
       </div>
