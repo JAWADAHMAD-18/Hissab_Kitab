@@ -8,12 +8,31 @@ import { TransactionModal } from "@/components/client/TransactionModal";
 import { Navbar } from "@/components/client/Navbar";
 import { ServiceWorkerRegister } from "@/components/client/ServiceWorkerRegister";
 
+import { getAppBaseUrl } from "@/lib/appUrl";
+
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Hisab Kitab — Personal Monthly Finance Tracker",
+  metadataBase: new URL(getAppBaseUrl()),
+  applicationName: "Hisab Kitab",
+  title: {
+    default: "Hisab Kitab — simple monthly money tracker",
+    template: "%s | Hisab Kitab",
+  },
   description:
-    "A personal monthly finance tracker designed for students and salaried employees to log income, track daily expenses, and stay on top of where their paycheck goes.",
+    "Track income and spending. See what's left. A simple monthly money tracker with voice logging and smart budgets.",
+  openGraph: {
+    title: "Hisab Kitab — simple monthly money tracker",
+    description: "Track income and spending. See what's left.",
+    siteName: "Hisab Kitab",
+    type: "website",
+    locale: "en",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Hisab Kitab — simple monthly money tracker",
+    description: "Track income and spending. See what's left.",
+  },
   appleWebApp: {
     capable: true,
     title: "Hisab Kitab",

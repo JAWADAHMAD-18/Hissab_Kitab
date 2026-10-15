@@ -142,7 +142,7 @@ export function WhatsAppConnectSection({
     whatsappDisplayNumber || "our WhatsApp number";
 
   return (
-    <div className="bg-surface border border-border rounded-2xl p-6 shadow-xs flex flex-col gap-4">
+    <div id="whatsapp" className="scroll-mt-24 bg-surface border border-border rounded-2xl p-6 shadow-xs flex flex-col gap-4">
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0">
           <MessageCircle className="w-5 h-5" />

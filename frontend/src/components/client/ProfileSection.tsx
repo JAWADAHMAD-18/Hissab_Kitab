@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AvatarUpload } from "@/components/client/AvatarUpload";
+import { dispatchAvatarUpdated } from "@/lib/avatarEvents";
 
 interface ProfileSectionProps {
   name: string;
@@ -65,7 +66,22 @@ export function ProfileSection({ name, email, image, createdAt }: ProfileSection
     if (!res.ok || !data.success) {
       throw new Error(data.error || "Failed to save avatar.");
     }
+    dispatchAvatarUpdated();
     router.refresh(); // updates Navbar avatar
+  };
+
+  const handleRemoveAvatar = async () => {
+    const res = await fetch("/api/user/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ avatarUrl: null }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Failed to remove avatar.");
+    }
+    dispatchAvatarUpdated();
+    router.refresh();
   };
 
   return (
@@ -76,6 +92,7 @@ export function ProfileSection({ name, email, image, createdAt }: ProfileSection
         currentImage={image}
         userInitial={userInitial}
         onSave={handleSaveAvatar}
+        onRemove={handleRemoveAvatar}
       />
 
       {/* Name field */}

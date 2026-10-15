@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import { SignupForm } from "@/components/client/SignupForm";
+
+export const metadata: Metadata = {
+  title: "Sign up",
+  description:
+    "Create your free Hisab Kitab account and start tracking your monthly money.",
+};
 
 export default function SignupPage() {
   return (

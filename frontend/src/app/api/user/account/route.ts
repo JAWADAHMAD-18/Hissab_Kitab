@@ -4,6 +4,9 @@ import { connectToDatabase } from "@/lib/db";
 import { requireAuth } from "@/lib/requireAuth";
 import Income from "@/models/Income";
 import Expense from "@/models/Expense";
+import Budget from "@/models/Budget";
+import WhatsAppMessage from "@/models/WhatsAppMessage";
+import PasswordResetToken from "@/models/PasswordResetToken";
 import User from "@/models/User";
 import { success } from "@/lib/apiResponse";
 import { AppError } from "@/lib/AppError";
@@ -20,9 +23,15 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
     throw new AppError("User not found", 404);
   }
 
-  // Delete children first, then parent
-  await Income.deleteMany({ userId: userObjId });
-  await Expense.deleteMany({ userId: userObjId });
+  // Delete all user-scoped children records in parallel, then user document
+  await Promise.all([
+    Income.deleteMany({ userId: userObjId }),
+    Expense.deleteMany({ userId: userObjId }),
+    Budget.deleteMany({ userId: userObjId }),
+    WhatsAppMessage.deleteMany({ userId: userObjId }),
+    PasswordResetToken.deleteMany({ userId: userObjId }),
+  ]);
+
   await User.deleteOne({ _id: userObjId });
 
   return success({ deleted: true });

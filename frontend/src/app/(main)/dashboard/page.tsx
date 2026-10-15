@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import mongoose from "mongoose";
 import { connectToDatabase } from "@/lib/db";
@@ -17,6 +18,16 @@ import { getEffectiveBudgets, computeBudgetStatus } from "@/lib/budgets";
 import { OnboardingWizard } from "@/components/client/onboarding/OnboardingWizard";
 import { DashboardLiveSync } from "@/components/client/DashboardLiveSync";
 import { InstallPrompt } from "@/components/client/InstallPrompt";
+import { WHATSAPP_PUBLIC } from "@/lib/features";
+import { WhatsAppPromoCard } from "@/components/server/WhatsAppPromoCard";
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 interface PageProps {
   searchParams: Promise<{ month?: string }>;
@@ -151,6 +162,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         />
         <QuickAddButtons />
       </div>
+
+      {/* WhatsApp Promo Card (Feature flag on & user not verified & onboarding not showing) */}
+      {WHATSAPP_PUBLIC && !onboarding.whatsappVerified && !showOnboarding && (
+        <WhatsAppPromoCard />
+      )}
 
       {/* Budget Warning / Over Alert Banner (Current Month Only) */}
       {selectedMonth === currentMonthStr && (

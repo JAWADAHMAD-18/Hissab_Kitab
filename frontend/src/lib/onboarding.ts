@@ -7,6 +7,7 @@ import Expense from "@/models/Expense";
 export interface OnboardingState {
   showOnboarding: boolean;
   firstName: string;
+  whatsappVerified: boolean;
 }
 
 export async function getOnboardingState(userId: string): Promise<OnboardingState> {
@@ -14,13 +15,14 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
   const userObjId = new mongoose.Types.ObjectId(userId);
 
   const user = await User.findById(userObjId)
-    .select("onboardingCompletedAt name")
+    .select("onboardingCompletedAt name whatsappVerified")
     .lean();
 
   const firstName = user?.name ? user.name.trim().split(" ")[0] : "there";
+  const whatsappVerified = Boolean(user?.whatsappVerified);
 
   if (user?.onboardingCompletedAt) {
-    return { showOnboarding: false, firstName };
+    return { showOnboarding: false, firstName, whatsappVerified };
   }
 
   // Check in parallel if the user already has any income or expense
@@ -35,8 +37,8 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
       { _id: userObjId, onboardingCompletedAt: { $exists: false } },
       { $set: { onboardingCompletedAt: new Date() } }
     );
-    return { showOnboarding: false, firstName };
+    return { showOnboarding: false, firstName, whatsappVerified };
   }
 
-  return { showOnboarding: true, firstName };
+  return { showOnboarding: true, firstName, whatsappVerified };
 }

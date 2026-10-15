@@ -7,9 +7,10 @@ interface AvatarUploadProps {
   currentImage: string | null;
   userInitial: string;
   onSave: (base64: string) => Promise<void>;
+  onRemove?: () => Promise<void>;
 }
 
-export function AvatarUpload({ currentImage, userInitial, onSave }: AvatarUploadProps) {
+export function AvatarUpload({ currentImage, userInitial, onSave, onRemove }: AvatarUploadProps) {
   const [preview, setPreview] = useState<string | null>(currentImage);
   const [pendingBase64, setPendingBase64] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -69,6 +70,23 @@ export function AvatarUpload({ currentImage, userInitial, onSave }: AvatarUpload
     }
   };
 
+  const handleRemove = async () => {
+    if (!onRemove) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await onRemove();
+      setPreview(null);
+      setPendingBase64(null);
+      setSavedMsg(true);
+      setTimeout(() => setSavedMsg(false), 2500);
+    } catch {
+      setError("Failed to remove avatar.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="flex items-center gap-5">
       {/* Avatar circle / preview */}
@@ -99,13 +117,25 @@ export function AvatarUpload({ currentImage, userInitial, onSave }: AvatarUpload
       />
 
       <div className="flex flex-col gap-1.5">
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="text-xs font-semibold text-accent hover:underline underline-offset-2 cursor-pointer w-fit"
-        >
-          Change photo
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="text-xs font-semibold text-accent hover:underline underline-offset-2 cursor-pointer w-fit"
+          >
+            Change photo
+          </button>
+          {preview && onRemove && !pendingBase64 && (
+            <button
+              type="button"
+              onClick={handleRemove}
+              disabled={saving}
+              className="text-xs font-medium text-expense hover:underline underline-offset-2 cursor-pointer w-fit disabled:opacity-50"
+            >
+              Remove photo
+            </button>
+          )}
+        </div>
         <p className="text-xs text-text-muted">Max 200×200px, JPEG/PNG</p>
 
         {pendingBase64 && (
@@ -120,7 +150,7 @@ export function AvatarUpload({ currentImage, userInitial, onSave }: AvatarUpload
         )}
 
         {savedMsg && (
-          <span className="text-xs text-income font-semibold">Photo saved ✓</span>
+          <span className="text-xs text-income font-semibold">Photo updated ✓</span>
         )}
         {error && (
           <span className="text-xs text-expense font-semibold">{error}</span>

@@ -26,7 +26,36 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   }
 
   if (avatarUrl !== undefined) {
-    user.image = avatarUrl;
+    if (avatarUrl === null || avatarUrl === "") {
+      user.image = undefined;
+    } else if (typeof avatarUrl === "string") {
+      const trimmed = avatarUrl.trim();
+      if (/^https:\/\//i.test(trimmed)) {
+        try {
+          new URL(trimmed);
+          user.image = trimmed;
+        } catch {
+          throw new AppError("Invalid avatar URL", 400);
+        }
+      } else {
+        const match = trimmed.match(
+          /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/
+        );
+        if (!match) {
+          throw new AppError(
+            "Invalid avatar format. Only PNG, JPEG, or WebP images are supported.",
+            400
+          );
+        }
+        const buffer = Buffer.from(match[2], "base64");
+        if (buffer.length > 300 * 1024) {
+          throw new AppError("Avatar image must be 300 KB or smaller", 400);
+        }
+        user.image = trimmed;
+      }
+    } else {
+      throw new AppError("Invalid avatar format", 400);
+    }
   }
 
   await user.save();

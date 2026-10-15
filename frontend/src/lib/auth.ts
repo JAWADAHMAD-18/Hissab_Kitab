@@ -39,7 +39,6 @@ export const authOptions: NextAuthOptions = {
           id: user._id.toString(),
           name: user.name,
           email: user.email,
-          image: user.image || undefined,
         };
       },
     }),
@@ -68,6 +67,10 @@ export const authOptions: NextAuthOptions = {
               user.id = newUser._id.toString();
             } else {
               user.id = existingUser._id.toString();
+              if (!existingUser.image && user.image) {
+                existingUser.image = user.image;
+                await existingUser.save();
+              }
             }
           }
         } catch (error) {
@@ -81,11 +84,15 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
       }
+      delete token.picture;
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.id) {
         session.user.id = token.id as string;
+      }
+      if (session.user) {
+        delete (session.user as Record<string, unknown>).image;
       }
       return session;
     },

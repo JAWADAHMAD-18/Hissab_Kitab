@@ -1,7 +1,9 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { CheckCircle2, Mic, MessageSquare } from "lucide-react";
+import { WHATSAPP_PUBLIC } from "@/lib/features";
 
 interface DoneStepProps {
   onComplete: () => void;
@@ -49,9 +51,19 @@ export function DoneStep({ onComplete, loading = false }: DoneStepProps) {
             <div className="font-semibold text-text-primary text-xs uppercase tracking-wider">
               WhatsApp Integration
             </div>
-            <p className="text-xs text-text-muted mt-0.5">
-              WhatsApp logging — coming soon.
-            </p>
+            {WHATSAPP_PUBLIC ? (
+              <Link
+                href="/settings#whatsapp"
+                onClick={onComplete}
+                className="text-xs font-semibold text-accent hover:underline underline-offset-2 mt-0.5 inline-block"
+              >
+                Connect WhatsApp &rarr;
+              </Link>
+            ) : (
+              <p className="text-xs text-text-muted mt-0.5">
+                WhatsApp logging — coming soon.
+              </p>
+            )}
           </div>
         </div>
       </div>

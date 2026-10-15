@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import { LoginForm } from "@/components/client/LoginForm";
 import { LoginToastHandler } from "@/components/client/LoginToastHandler";
+
+export const metadata: Metadata = {
+  title: "Log in",
+  description: "Sign in to your Hisab Kitab account.",
+};
 
 interface LoginPageProps {
   searchParams: Promise<{

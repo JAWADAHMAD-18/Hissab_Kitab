@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import mongoose from "mongoose";
 import { connectToDatabase } from "@/lib/db";
@@ -8,6 +9,14 @@ import { ChangePasswordSection } from "@/components/client/ChangePasswordSection
 import { ExportDataButton } from "@/components/client/ExportDataButton";
 import { WhatsAppConnectSection } from "@/components/client/WhatsAppConnectSection";
 import { DeleteAccountSection } from "@/components/client/DeleteAccountSection";
+
+export const metadata: Metadata = {
+  title: "Settings",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default async function SettingsPage() {
   let userId: string;

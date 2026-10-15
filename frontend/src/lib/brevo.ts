@@ -1,3 +1,5 @@
+import { getAppBaseUrl } from "@/lib/appUrl";
+
 interface SendMonthlyReportEmailParams {
   toEmail: string;
   toName: string;
@@ -341,11 +343,7 @@ export async function sendWeeklyReportEmail(
   }
 }
 
-export function getAppBaseUrl(): string {
-  const url =
-    process.env.APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
-  return url.replace(/\/+$/, "");
-}
+export { getAppBaseUrl };
 
 export interface SendTransactionalEmailParams {
   toEmail: string;

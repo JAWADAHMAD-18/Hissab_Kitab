@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import mongoose from "mongoose";
 import { connectToDatabase } from "@/lib/db";
@@ -8,6 +9,14 @@ import { TransactionItem } from "@/components/server/RecentActivity";
 import { groupTransactionsByWeek } from "@/lib/groupTransactionsByWeek";
 import { MonthSwitcher } from "@/components/client/MonthSwitcher";
 import { TransactionsListClient } from "@/components/client/TransactionsListClient";
+
+export const metadata: Metadata = {
+  title: "Transactions",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 interface PageProps {
   searchParams: Promise<{ month?: string }>;

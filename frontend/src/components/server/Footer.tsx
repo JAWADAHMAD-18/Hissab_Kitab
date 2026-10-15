@@ -1,11 +1,8 @@
 import React from "react";
 import Link from "next/link";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { SUPPORT_EMAIL } from "@/lib/legal";
 
-export async function Footer() {
-  const session = await getServerSession(authOptions);
-  const isAuthenticated = Boolean(session?.user);
+export function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
@@ -13,7 +10,7 @@ export async function Footer() {
       <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10 lg:py-12">
         <nav
           aria-label="Footer"
-          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 lg:gap-12"
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-8 lg:gap-12"
         >
           {/* Zone 1: Brand block */}
           <div className="sm:col-span-2 flex flex-col gap-3">
@@ -53,73 +50,83 @@ export async function Footer() {
               </li>
               <li>
                 <Link
-                  href="/login"
+                  href="/about"
                   className="hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
                 >
-                  Log In
+                  About
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/signup"
+                  href="/faq"
                   className="hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
                 >
-                  Sign Up
+                  FAQ
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Zone 3: Account column */}
+          {/* Zone 3: Legal column */}
           <div className="flex flex-col gap-3">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-text-primary">
-              Account
+              Legal
             </h4>
             <ul className="flex flex-col gap-2.5 text-sm text-text-muted">
-              {isAuthenticated ? (
-                <>
-                  <li>
-                    <Link
-                      href="/dashboard"
-                      className="hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
-                    >
-                      Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      href="/settings"
-                      className="hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
-                    >
-                      Settings
-                    </Link>
-                  </li>
-                </>
-              ) : (
-                <>
-                  <li>
-                    <Link
-                      href="/login"
-                      className="hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
-                    >
-                      Log in
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      href="/signup"
-                      className="hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
-                    >
-                      Sign up
-                    </Link>
-                  </li>
-                </>
-              )}
+              <li>
+                <Link
+                  href="/privacy"
+                  className="hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
+                >
+                  Privacy
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/terms"
+                  className="hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
+                >
+                  Terms
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/data-deletion"
+                  className="hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
+                >
+                  Data Deletion
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Zone 4: Support column */}
+          <div className="flex flex-col gap-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-text-primary">
+              Support
+            </h4>
+            <ul className="flex flex-col gap-2.5 text-sm text-text-muted">
+              <li>
+                <Link
+                  href="/contact"
+                  className="hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
+                >
+                  Contact
+                </Link>
+              </li>
+              <li>
+                <a
+                  href={`mailto:${SUPPORT_EMAIL}`}
+                  className="hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
+                >
+                  {SUPPORT_EMAIL}
+                </a>
+              </li>
             </ul>
           </div>
         </nav>
 
-        {/* Zone 4: Bottom bar */}
+        {/* Zone 5: Bottom bar */}
         <div className="border-t border-border mt-8 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-text-muted">
           <p>© {currentYear} Hisab Kitab</p>
           <p>

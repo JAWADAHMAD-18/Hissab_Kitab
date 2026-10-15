@@ -9,7 +9,8 @@ import { AppError } from "@/lib/AppError";
 import { withErrorHandler } from "@/lib/withErrorHandler";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { getClientIp } from "@/lib/getClientIp";
-import { getAppBaseUrl, sendPasswordResetEmail } from "@/lib/brevo";
+import { sendPasswordResetEmail } from "@/lib/brevo";
+import { getAppBaseUrl } from "@/lib/appUrl";
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const body = await req.json().catch(() => ({}));
