@@ -17,6 +17,17 @@ export const EXPENSE_CATEGORIES = [
 ] as const;
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
+export const BUDGET_TOTAL = "Total" as const;
+export type BudgetTotal = typeof BUDGET_TOTAL;
+
+export const BUDGET_CATEGORIES = [
+  BUDGET_TOTAL,
+  ...EXPENSE_CATEGORIES,
+] as const;
+export type BudgetCategory = (typeof BUDGET_CATEGORIES)[number];
+
+export type BudgetScope = "from" | "only";
+
 export const PAYMENT_METHODS = ["Cash", "Card", "Bank"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
@@ -68,6 +79,18 @@ export interface IExpense {
   source: ExpenseSource;
   waMessageId?: string;
   waIndex?: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+// Budget Interface
+export interface IBudget {
+  _id?: Types.ObjectId | string;
+  userId: Types.ObjectId | string;
+  category: BudgetCategory;
+  amount: number;
+  scope: BudgetScope;
+  month: string; // YYYY-MM format
   createdAt?: Date;
   updatedAt?: Date;
 }

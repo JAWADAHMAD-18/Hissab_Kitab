@@ -4,6 +4,7 @@ import { connectToDatabase } from "@/lib/db";
 import { requireAuth } from "@/lib/requireAuth";
 import Income from "@/models/Income";
 import Expense from "@/models/Expense";
+import Budget from "@/models/Budget";
 import { success } from "@/lib/apiResponse";
 import { AppError } from "@/lib/AppError";
 import { withErrorHandler } from "@/lib/withErrorHandler";
@@ -41,7 +42,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     month: { $lte: month },
   };
 
-  const [incomePulse, expensePulse] = await Promise.all([
+  const [incomePulse, expensePulse, budgetPulse] = await Promise.all([
     Income.aggregate([
       { $match: matchQuery },
       {
@@ -62,6 +63,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         },
       },
     ]),
+    Budget.aggregate([
+      { $match: { userId: userObjId } },
+      {
+        $group: {
+          _id: null,
+          count: { $sum: 1 },
+          maxUpdated: { $max: "$updatedAt" },
+        },
+      },
+    ]),
   ]);
 
   const incCount = incomePulse[0]?.count ?? 0;
@@ -74,7 +85,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     ? new Date(expensePulse[0].maxUpdated).getTime()
     : 0;
 
-  const signature = `inc:${incCount}:${incMaxUpdated}|exp:${expCount}:${expMaxUpdated}`;
+  const bgtCount = budgetPulse[0]?.count ?? 0;
+  const bgtMaxUpdated = budgetPulse[0]?.maxUpdated
+    ? new Date(budgetPulse[0].maxUpdated).getTime()
+    : 0;
+
+  const signature = `inc:${incCount}:${incMaxUpdated}|exp:${expCount}:${expMaxUpdated}|bgt:${bgtCount}:${bgtMaxUpdated}`;
 
   const res = success({ signature });
   res.headers.set("Cache-Control", "no-store");

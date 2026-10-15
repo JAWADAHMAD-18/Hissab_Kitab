@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import mongoose from "mongoose";
 import { connectToDatabase } from "@/lib/db";
 import User from "@/models/User";
+import Expense from "@/models/Expense";
+import { getEffectiveBudgets, crossedThresholds } from "@/lib/budgets";
+import { BUDGET_TOTAL } from "@/types";
+import { getPkMonth } from "@/lib/dates";
 import {
   downloadMedia,
   getMediaUrl,
@@ -363,6 +368,92 @@ async function handleMessage(message: IncomingMessage): Promise<{
       if (extracted.skipped > 0 || cappedCount > 0) {
         const skippedTotal = extracted.skipped + cappedCount;
         replyText += `\n(${skippedTotal} skipped — couldn't read the amount.)`;
+      }
+    }
+
+    // Budget threshold alerts (expenses only, non-blocking)
+    const savedExpenses = validEntries
+      .slice(0, savedCount)
+      .filter((e) => e.type === "expense");
+
+    if (savedExpenses.length > 0) {
+      try {
+        const currentPkMonth = getPkMonth();
+        const effectiveBudgets = await getEffectiveBudgets(userId, currentPkMonth);
+
+        if (Object.keys(effectiveBudgets).length > 0) {
+          const userObjId = new mongoose.Types.ObjectId(userId);
+
+          const categoryAgg = await Expense.aggregate([
+            { $match: { userId: userObjId, month: currentPkMonth } },
+            { $group: { _id: "$category", total: { $sum: "$amount" } } },
+          ]);
+
+          const currentSpendByCat: Record<string, number> = {};
+          let currentTotalSpend = 0;
+          for (const row of categoryAgg) {
+            currentSpendByCat[row._id] = row.total;
+            currentTotalSpend += row.total;
+          }
+
+          const addedByCat: Record<string, number> = {};
+          let addedTotal = 0;
+          for (const exp of savedExpenses) {
+            addedByCat[exp.category] = (addedByCat[exp.category] || 0) + exp.amount;
+            addedTotal += exp.amount;
+          }
+
+          const alertLines: string[] = [];
+
+          // Check categories touched in this message
+          for (const cat of Object.keys(addedByCat)) {
+            const budget = effectiveBudgets[cat];
+            if (budget && budget > 0) {
+              const after = currentSpendByCat[cat] || 0;
+              const before = after - addedByCat[cat];
+              const crossing = crossedThresholds(before, after, budget);
+
+              if (crossing === "over") {
+                alertLines.push(
+                  `🚫 ${cat} budget exceeded (Rs. ${formatRs(after)} of Rs. ${formatRs(budget)})`
+                );
+              } else if (crossing === "warn") {
+                const percent = Math.round((after / budget) * 100);
+                alertLines.push(
+                  `⚠️ ${cat} budget: ${percent}% used (Rs. ${formatRs(after)} of Rs. ${formatRs(budget)})`
+                );
+              }
+            }
+          }
+
+          // Check Total budget if it exists
+          const totalBudget = effectiveBudgets[BUDGET_TOTAL];
+          if (totalBudget && totalBudget > 0) {
+            const after = currentTotalSpend;
+            const before = after - addedTotal;
+            const crossing = crossedThresholds(before, after, totalBudget);
+
+            if (crossing === "over") {
+              alertLines.push(
+                `🚫 Monthly budget exceeded (Rs. ${formatRs(after)} of Rs. ${formatRs(totalBudget)})`
+              );
+            } else if (crossing === "warn") {
+              const percent = Math.round((after / totalBudget) * 100);
+              alertLines.push(
+                `⚠️ Monthly budget: ${percent}% used (Rs. ${formatRs(after)} of Rs. ${formatRs(totalBudget)})`
+              );
+            }
+          }
+
+          if (alertLines.length > 0) {
+            replyText += "\n" + alertLines.slice(0, 2).join("\n");
+          }
+        }
+      } catch (budgetErr) {
+        console.error(
+          "WhatsApp budget alert error:",
+          budgetErr instanceof Error ? budgetErr.message : "Unknown error"
+        );
       }
     }
 

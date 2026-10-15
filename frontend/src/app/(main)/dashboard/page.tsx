@@ -9,9 +9,11 @@ import { QuickAddButtons } from "@/components/client/QuickAddButtons";
 import { DashboardStats } from "@/components/server/DashboardStats";
 import { MonthRunway } from "@/components/server/MonthRunway";
 import { CategoryBreakdown } from "@/components/server/CategoryBreakdown";
+import { BudgetAlert } from "@/components/server/BudgetAlert";
 import { RecentActivity, TransactionItem } from "@/components/server/RecentActivity";
 import { DownloadStatementButton } from "@/components/client/DownloadStatementButton";
 import { getOnboardingState } from "@/lib/onboarding";
+import { getEffectiveBudgets, computeBudgetStatus } from "@/lib/budgets";
 import { OnboardingWizard } from "@/components/client/onboarding/OnboardingWizard";
 import { DashboardLiveSync } from "@/components/client/DashboardLiveSync";
 import { InstallPrompt } from "@/components/client/InstallPrompt";
@@ -41,7 +43,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const userObjId = new mongoose.Types.ObjectId(userId);
 
   // Parallel fetch — all queries run simultaneously, total wait = slowest single query
-  const [monthExpenses, monthIncomes, prevIncomeAgg, prevExpenseAgg, onboarding] = await Promise.all([
+  const [
+    monthExpenses,
+    monthIncomes,
+    prevIncomeAgg,
+    prevExpenseAgg,
+    onboarding,
+    effectiveBudgets,
+  ] = await Promise.all([
     Expense.find({
       userId: userObjId,
       month: selectedMonth,
@@ -63,6 +72,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]),
     getOnboardingState(userId),
+    getEffectiveBudgets(userId, selectedMonth).catch(() => ({})),
   ]);
 
   const { showOnboarding, firstName } = onboarding;
@@ -74,6 +84,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   monthExpenses.forEach((exp) => {
     categoryMap[exp.category] = (categoryMap[exp.category] || 0) + exp.amount;
   });
+
+  const budgetStatuses = computeBudgetStatus(
+    categoryMap,
+    spentThisMonth,
+    effectiveBudgets
+  );
 
   const categorySums = Object.entries(categoryMap)
     .map(([category, amount]) => ({ category, amount }))
@@ -136,6 +152,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         <QuickAddButtons />
       </div>
 
+      {/* Budget Warning / Over Alert Banner (Current Month Only) */}
+      {selectedMonth === currentMonthStr && (
+        <BudgetAlert statuses={budgetStatuses} />
+      )}
+
       {/* Summary Stats Cards */}
       <DashboardStats
         spentThisMonth={spentThisMonth}
@@ -157,6 +178,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         <CategoryBreakdown
           categorySums={categorySums}
           totalSpent={spentThisMonth}
+          budgets={effectiveBudgets}
+          statuses={budgetStatuses}
+          month={selectedMonth}
         />
         <RecentActivity transactions={transactions} />
       </div>

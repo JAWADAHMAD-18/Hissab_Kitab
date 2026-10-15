@@ -8,13 +8,22 @@ interface SendMonthlyReportEmailParams {
   totalExpense: number;
 }
 
-interface SendWeeklyReportEmailParams {
+export interface WeeklyBudgetAlert {
+  label: string;
+  percent: number;
+  level: "warn" | "over";
+  spent: number;
+  budget: number;
+}
+
+export interface SendWeeklyReportEmailParams {
   toEmail: string;
   toName: string;
   weekLabel: string;
   narrative: string;
   totalIncome: number;
   totalExpense: number;
+  budgetAlerts?: WeeklyBudgetAlert[];
 }
 
 function formatRs(amount: number): string {
@@ -156,6 +165,39 @@ function buildHtml(params: SendMonthlyReportEmailParams): string {
 </html>`;
 }
 
+function buildBudgetCheckHtml(alerts?: WeeklyBudgetAlert[]): string {
+  if (!alerts || alerts.length === 0) return "";
+
+  const displayAlerts = alerts.slice(0, 5);
+  const rows = displayAlerts
+    .map((alert) => {
+      const color = alert.level === "over" ? "#DC2626" : "#F59E0B";
+      const text =
+        alert.level === "over"
+          ? `${escapeHtml(alert.label)} — over budget by ${formatRs(alert.spent - alert.budget)}`
+          : `${escapeHtml(alert.label)} — ${alert.percent}% of ${formatRs(alert.budget)} used`;
+
+      return `
+              <tr>
+                <td style="padding:0 0 6px 0;font-size:14px;line-height:1.5;color:${color};font-weight:600;">
+                  <span style="font-size:14px;vertical-align:middle;">&#9679;&nbsp;</span>${text}
+                </td>
+              </tr>`;
+    })
+    .join("");
+
+  return `
+              <!-- Budget check section -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="padding:16px 0 20px 0;">
+                <tr>
+                  <td style="padding:0 0 8px 0;font-size:12px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">
+                    Budget check
+                  </td>
+                </tr>
+                ${rows}
+              </table>`;
+}
+
 function buildWeeklyHtml(params: SendWeeklyReportEmailParams): string {
   const firstName = params.toName.split(" ")[0] || params.toName;
   const appUrl = process.env.APP_URL || "http://localhost:3000";
@@ -193,6 +235,8 @@ function buildWeeklyHtml(params: SendWeeklyReportEmailParams): string {
                 Hi ${escapeHtml(firstName)},<br><br>
                 ${escapeHtml(params.narrative)}
               </p>
+
+              ${buildBudgetCheckHtml(params.budgetAlerts)}
 
               <!-- Stats table: compact 2-row table (Total In / Total Out for the week) -->
               <table width="100%" cellpadding="0" cellspacing="0" style="padding:20px 0 24px 0;border-top:1px solid #E5E7EB;">

@@ -8,7 +8,9 @@ import User from "@/models/User";
 import Income from "@/models/Income";
 import Expense from "@/models/Expense";
 import { executeGroqChat } from "@/lib/groqChat";
-import { sendWeeklyReportEmail } from "@/lib/brevo";
+import { sendWeeklyReportEmail, WeeklyBudgetAlert } from "@/lib/brevo";
+import { getPkMonth } from "@/lib/dates";
+import { getEffectiveBudgets, computeBudgetStatus } from "@/lib/budgets";
 
 function verifyCronAuth(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -122,6 +124,50 @@ async function processUserReport(
     narrative = "Here is a quick summary of your week's activity. Keep tracking and keep your budget in check!";
   }
 
+  // Compute budget alerts for the PKT month of week's end date (non-blocking)
+  let budgetAlerts: WeeklyBudgetAlert[] | undefined = undefined;
+  try {
+    const pktMonth = getPkMonth(sunday);
+    const effectiveBudgets = await getEffectiveBudgets(user._id, pktMonth);
+
+    if (Object.keys(effectiveBudgets).length > 0) {
+      // Spend by category for that whole calendar month so far, one aggregate
+      const monthAgg = await Expense.aggregate([
+        { $match: { userId: user._id, month: pktMonth } },
+        { $group: { _id: "$category", total: { $sum: "$amount" } } },
+      ]);
+
+      const spentByCategory: Record<string, number> = {};
+      let totalSpent = 0;
+      for (const row of monthAgg) {
+        spentByCategory[row._id] = row.total;
+        totalSpent += row.total;
+      }
+
+      const statuses = computeBudgetStatus(
+        spentByCategory,
+        totalSpent,
+        effectiveBudgets
+      );
+
+      const alerts = statuses
+        .filter((s) => s.level === "warn" || s.level === "over")
+        .map((s) => ({
+          label: s.category === "Total" ? "Monthly budget" : s.category,
+          percent: s.percent,
+          level: s.level as "warn" | "over",
+          spent: s.spent,
+          budget: s.budget,
+        }));
+
+      if (alerts.length > 0) {
+        budgetAlerts = alerts;
+      }
+    }
+  } catch (err) {
+    console.error(`Failed to compute budgets for weekly report of ${user.email}:`, err);
+  }
+
   await sendWeeklyReportEmail({
     toEmail: user.email,
     toName: user.name,
@@ -129,6 +175,7 @@ async function processUserReport(
     narrative,
     totalIncome: stats.totalIncome,
     totalExpense: stats.totalExpense,
+    budgetAlerts,
   });
 
   return "sent";
