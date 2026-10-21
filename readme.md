@@ -46,7 +46,7 @@ Most expense apps ask you to fill long forms, so people stop using them. Hisab K
 
 | Dashboard | Budgets | Voice log |
 |---|---|---|
-| ![](docs/dashboard.png) | ![](docs/budgets.png) | ![](docs/voice.png) |
+| ![](docs/dashboard.jpeg) | ![](docs/budgets.png) | ![](docs/voice.jpeg) |
 
 <!-- TODO: add mobile screenshots to docs/screenshots/ -->
 
