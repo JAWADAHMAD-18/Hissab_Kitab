@@ -7,7 +7,7 @@
 ![Next.js](https://img.shields.io/badge/Next.js-16-black) ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6) ![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248) ![PWA](https://img.shields.io/badge/PWA-installable-059669)
 
 <!-- TODO: add a hero screenshot -->
-![Dashboard](docs/screenshots/dashboard.png)
+![Dashboard](docs/dashboard.png)
 
 ---
 
@@ -46,7 +46,7 @@ Most expense apps ask you to fill long forms, so people stop using them. Hisab K
 
 | Dashboard | Budgets | Voice log |
 |---|---|---|
-| ![](docs/screenshots/dashboard.png) | ![](docs/screenshots/budgets.png) | ![](docs/screenshots/voice.png) |
+| ![](docs/dashboard.png) | ![](docs/budgets.png) | ![](docs/voice.png) |
 
 <!-- TODO: add mobile screenshots to docs/screenshots/ -->
 
@@ -191,6 +191,6 @@ Copyright © 2026 Zalvro. All rights reserved. This code is shown for portfolio 
 
 ## Author
 
-**TODO: your name** · Founder, [Zalvro](https://zalvrohq.com)
+**TODO: Jawad Ahmad** · Founder, [Zalvro](https://zalvrohq.com)
 [LinkedIn](TODO) · [GitHub](TODO)
 
