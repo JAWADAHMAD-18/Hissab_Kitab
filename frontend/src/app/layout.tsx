@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/client/Providers";
 import { AuthModalProvider } from "@/components/client/AuthModalProvider";
@@ -9,8 +8,12 @@ import { Navbar } from "@/components/client/Navbar";
 import { ServiceWorkerRegister } from "@/components/client/ServiceWorkerRegister";
 
 import { getAppBaseUrl } from "@/lib/appUrl";
-
-const inter = Inter({ subsets: ["latin"] });
+import localFont from "next/font/local";
+const inter = localFont({
+  src: "../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2",
+  weight: "100 900",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(getAppBaseUrl()),
@@ -52,7 +55,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-background text-text-primary min-h-screen antialiased flex flex-col`}>
+      <body
+        className={`${inter.className} bg-background text-text-primary min-h-screen antialiased flex flex-col`}
+      >
         <Providers>
           <AuthModalProvider>
             <TransactionModalProvider>
